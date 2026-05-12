@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# appscanner runtime state
+/data
+/legacy
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

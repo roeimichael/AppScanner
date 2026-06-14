@@ -1,0 +1,26 @@
+name: appscanner scan
+
+# Pings the deployed /api/scan every 15 minutes so listings get scanned and
+# Telegram alerts fire near-real-time. Vercel Hobby cron only runs once/day,
+# so this GitHub Actions schedule replaces it as the real trigger.
+#
+# Requires repo secret CRON_SECRET (Settings -> Secrets and variables -> Actions),
+# set to the same value as the Vercel CRON_SECRET env var.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 min (UTC). GitHub may delay by a few min under load.
+  workflow_dispatch: {}       # allow manual "Run workflow" from the Actions tab
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scan
+        run: |
+          code=$(curl -sS -o /tmp/out.txt -w "%{http_code}" \
+            -X POST "https://appscanner-liart.vercel.app/api/scan" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $code"
+          cat /tmp/out.txt; echo
+          test "$code" = "200"

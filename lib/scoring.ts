@@ -15,6 +15,7 @@
 // If sum(weights) is 0 the listing scores 50 (neutral) so it still ranks.
 
 import type { Listing, Preferences } from './sources/types';
+import { nearestStation } from './lrt';
 
 export interface ScoreBreakdown {
     score: number;                     // 0-100
@@ -92,6 +93,14 @@ export const scoreListing = (
             const has = listing[lk] as boolean | undefined;
             push(String(wk), label, w!, boolBonus(has), has === true ? 'yes' : has === false ? 'no' : '?');
         }
+    }
+
+    // Light-rail proximity — 1 at a station, linear decay to 0 at 1.5 km (~19 min walk).
+    // No coords → 0.5 (neutral) so missing geo doesn't unfairly sink the listing.
+    if ((prefs.weightLrt ?? 0) > 0) {
+        const near = nearestStation(listing.lat, listing.lon);
+        const v = near ? Math.max(0, 1 - near.distanceM / 1500) : 0.5;
+        push('lrt', 'Light rail', prefs.weightLrt!, v, near ? `${near.walkMin} min to ${near.station.name}` : 'no coords');
     }
 
     if ((prefs.weightImage ?? 0) > 0) {

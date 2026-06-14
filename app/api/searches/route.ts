@@ -57,6 +57,7 @@ const PreferencesSchema = z.object({
     weightPets: z.number().min(0).max(10).optional(),
     weightImage: z.number().min(0).max(10).optional(),
     weightFreshness: z.number().min(0).max(10).optional(),
+    weightLrt: z.number().min(0).max(10).optional(),
 }).optional();
 
 const CreateSchema = z.object({

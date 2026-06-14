@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
+import { RED_LINE_STATIONS, nearestStation } from '@/lib/lrt';
 
 interface MapListing {
     sourceId: string;
@@ -98,6 +99,7 @@ function ClusterLayer({ listings, mode, priceMin, priceMax }: {
                 fillOpacity: l.userState === 'dismissed' ? 0.25 : 0.7,
             });
 
+            const near = nearestStation(l.lat, l.lon);
             const popup = `
                 <div style="font-family: system-ui, sans-serif; min-width: 220px; direction: ltr;">
                     ${l.image ? `<img src="${l.image}" style="width:100%;height:120px;object-fit:cover;border-radius:6px;margin-bottom:6px;" />` : ''}
@@ -108,6 +110,7 @@ function ClusterLayer({ listings, mode, priceMin, priceMax }: {
                         ${l.rooms != null ? `<span>${l.rooms} rooms</span>` : ''}
                         ${l.sqm != null ? `<span>${l.sqm} sqm</span>` : ''}
                     </div>
+                    ${near ? `<div style="color:#b91c1c;font-size:12px;margin-top:2px;">🚈 ${near.walkMin} min walk to ${near.station.name} (${near.distanceM}m)</div>` : ''}
                     <div style="display:flex;gap:4px;margin-top:6px;align-items:center;">
                         <span style="background:${SOURCE_COLOR[l.sourceId] ?? '#888'}33;color:${SOURCE_COLOR[l.sourceId] ?? '#888'};padding:2px 6px;border-radius:4px;font-size:10px;text-transform:uppercase;font-family:monospace;">${l.sourceId}</span>
                         ${l.isAgency === true ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px;">תיווך</span>' : ''}
@@ -129,6 +132,27 @@ function ClusterLayer({ listings, mode, priceMin, priceMax }: {
         return () => { map.removeLayer(layer); };
     }, [listings, mode, priceMin, priceMax, map]);
 
+    return null;
+}
+
+// Draws the operational Red Line (Petah Tikva) as a polyline plus a labelled marker
+// per station, so listings can be read against transit access at a glance.
+function RedLineLayer() {
+    const map = useMap();
+    useEffect(() => {
+        const line = L.polyline(
+            RED_LINE_STATIONS.map(s => [s.lat, s.lon] as [number, number]),
+            { color: '#dc2626', weight: 5, opacity: 0.8 },
+        );
+        const stops = RED_LINE_STATIONS.map(s =>
+            L.circleMarker([s.lat, s.lon], {
+                radius: 6, color: '#7f1d1d', weight: 2, fillColor: '#dc2626', fillOpacity: 1,
+            }).bindTooltip(`🚈 ${s.name}`, { direction: 'top' }),
+        );
+        const group = L.layerGroup([line, ...stops]);
+        map.addLayer(group);
+        return () => { map.removeLayer(group); };
+    }, [map]);
     return null;
 }
 
@@ -158,6 +182,7 @@ export function ListingsMap({ listings, colorBy = 'source' }: {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <FitBounds points={points} />
+                <RedLineLayer />
                 <ClusterLayer listings={listings} mode={colorBy} priceMin={priceMin} priceMax={priceMax} />
             </MapContainer>
 

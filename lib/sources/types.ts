@@ -71,6 +71,7 @@ export interface Preferences {
     weightPets?: number;
     weightImage?: number;           // listings with photos rank higher
     weightFreshness?: number;       // newer listings rank higher
+    weightLrt?: number;             // closer to a light-rail station ranks higher
 }
 
 export interface Listing {

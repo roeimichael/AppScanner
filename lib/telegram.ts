@@ -1,5 +1,6 @@
 import type { Listing } from './sources/types';
 import { ratePpsqm, type PpsqmStats } from './market-stats';
+import { nearestStation } from './lrt';
 
 const TG_API = 'https://api.telegram.org';
 
@@ -165,11 +166,16 @@ export const formatListingBlock = (
     const ams = amenityLine(it);
     const amenityRow = ams ? `\n   ${ams}` : '';
 
+    // Walking distance to the nearest operational Red Line station.
+    const near = nearestStation(it.lat, it.lon);
+    const lrtRow = near ? `\n   🚈 ${near.walkMin} min walk to ${escape(near.station.name)} (${near.distanceM}m)` : '';
+
     return [
         `\n${finalHeaderEmoji} <b>${headerText}</b>${hotDeal ? ' <i>(hot deal)</i>' : ''} — ${escape(it.city ?? '')}`,
         addr ? `   ${escape(addr)}` : '',
         meta ? `   ${escape(meta)}` : '',
         valueLine,
+        lrtRow,
         `   ${agencyTag(it)}`,
         amenityRow,
         phoneLine,

@@ -109,6 +109,7 @@ const FEATURE_PREFS: { weightKey: keyof Preferences; label: string; icon: string
     { weightKey: 'weightPets', label: 'Pet-friendly', icon: '🐾' },
     { weightKey: 'weightImage', label: 'Has photos', icon: '📷' },
     { weightKey: 'weightFreshness', label: 'Recency', icon: '⏱️' },
+    { weightKey: 'weightLrt', label: 'Near light rail', icon: '🚈' },
 ];
 
 const blank: SearchFormValue = {

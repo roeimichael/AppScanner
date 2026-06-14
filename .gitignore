@@ -45,3 +45,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# local analysis artifact (rots; live map is /map)
+lrt-map.html

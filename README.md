@@ -35,6 +35,7 @@ The Israeli rental market moves fast. A good listing in a tight neighborhood is 
 - 👥 **Multi-chat fan-out** — DM yourself + share a group chat for collaborative hunting
 - 🌙 **Active hours** — pause overnight, scan during the day
 - 🗺️ **Web dashboard** — searches, optimal ranking, map with clustering, activity charts
+- 👥 **Shared tracker** — collaborative tab for 2-3 roommates: shortlist apartments from any source, track status (interested → contacted → visited → signed), assign who's reaching out, leave notes
 
 ## Quickstart
 
@@ -47,10 +48,11 @@ npm install
 cp .env.local.example .env.local   # then fill it in
 ```
 
-Apply the schema to your Supabase project (paste into the SQL editor):
+Apply the schema to your Supabase project (paste both files into the SQL editor, in order):
 
 ```bash
 supabase/migrations/0001_init_appscanner_schema.sql
+supabase/migrations/0002_tracker.sql
 ```
 
 Run it:
@@ -72,6 +74,7 @@ vercel env add SUPABASE_URL              production
 vercel env add SUPABASE_SERVICE_ROLE_KEY production
 vercel env add SCRAPERAPI_KEY            production   # optional
 vercel env add CRON_SECRET               production
+vercel env add ROOMMATES                 production   # comma-separated names for tracker tab
 vercel deploy --prod
 ```
 

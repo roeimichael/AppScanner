@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import Link from 'next/link';
-import { Bell, Building2, Cog, Home, Map as MapIcon, Sparkles } from 'lucide-react';
+import { Bell, Building2, Cog, Globe, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
 import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -26,7 +26,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                                 <span>appscanner</span>
                             </Link>
                             <NavLink href="/" icon={<Home className="h-4 w-4" />}>Searches</NavLink>
-                            <NavLink href="/optimal" icon={<Sparkles className="h-4 w-4" />}>Optimal</NavLink>
+                            <NavLink href="/optimal" icon={<Sparkles className="h-4 w-4" />}>Pool</NavLink>
+                            <NavLink href="/tracker" icon={<ListChecks className="h-4 w-4" />}>Tracker</NavLink>
+                            <NavLink href="/links" icon={<Globe className="h-4 w-4" />}>Links</NavLink>
                             <NavLink href="/map" icon={<MapIcon className="h-4 w-4" />}>Map</NavLink>
                             <NavLink href="/notifications" icon={<Bell className="h-4 w-4" />}>Activity</NavLink>
                             <div className="ml-auto">

@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Bed, Building2, Clock, Coins, ExternalLink, Heart, Maximize2, MapPin, Sparkles, UserCheck, X } from 'lucide-react';
+import { useState } from 'react';
+import { Bed, BookmarkPlus, Building2, Check, Clock, Coins, ExternalLink, Heart, Loader2, Maximize2, MapPin, Sparkles, UserCheck, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -28,6 +30,7 @@ export interface ListingCardData {
     newPrice?: number;
     createdAt?: string;
     firstSeenAt?: string;
+    inTracker?: boolean;
 }
 
 const fmtAge = (iso?: string) => {
@@ -88,6 +91,23 @@ export function ListingCard({ data, compact = false }: { data: ListingCardData; 
     const detailHref = `/listings/${data.sourceId}/${data.token}`;
     const isRemoved = data.status === 'removed' || data.eventKind === 'removed';
     const isPriceDrop = data.eventKind === 'price_drop';
+    const [tracking, setTracking] = useState(false);
+    const [tracked, setTracked] = useState(data.inTracker ?? false);
+    const track = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (tracking || tracked) return;
+        setTracking(true);
+        const me = typeof window !== 'undefined' ? localStorage.getItem('tracker:me') : null;
+        try {
+            const r = await fetch('/api/tracker/apartments', {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'import', sourceId: data.sourceId, token: data.token, createdBy: me }),
+            });
+            if (r.ok) { setTracked(true); toast.success('Added to tracker'); }
+            else { const j = await r.json().catch(() => ({})); toast.error(j.error ?? 'Failed'); }
+        } finally { setTracking(false); }
+    };
 
     return (
         <Card className={`overflow-hidden p-0 group transition-all hover:shadow-lg hover:-translate-y-0.5 bg-card/50 backdrop-blur ring-1 ${src.ring} ${data.userState === 'dismissed' ? 'opacity-50' : ''} ${data.userState === 'favorite' ? 'ring-pink-500/50' : ''}`}>
@@ -199,6 +219,20 @@ export function ListingCard({ data, compact = false }: { data: ListingCardData; 
                             )}
                         </div>
                     )}
+
+                    <button
+                        onClick={track}
+                        disabled={tracking || tracked}
+                        className={`w-full inline-flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors mt-1 ${
+                            tracked
+                                ? 'bg-emerald-500/15 text-emerald-400 cursor-default'
+                                : 'bg-primary/15 hover:bg-primary/25 text-primary'
+                        }`}
+                    >
+                        {tracking ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : tracked ? <><Check className="h-3.5 w-3.5" />In tracker</>
+                            : <><BookmarkPlus className="h-3.5 w-3.5" />Add to Interested</>}
+                    </button>
                 </div>
             </Link>
         </Card>

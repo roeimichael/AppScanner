@@ -46,8 +46,18 @@ export default function OptimalPage() {
         Promise.all([
             fetch('/api/optimal?includeDismissed=1&includeRemoved=1').then(r => r.json()),
             fetch('/api/searches').then(r => r.json()),
-        ]).then(([oj, sj]) => {
-            setItems(oj.listings ?? []);
+            fetch('/api/tracker/apartments').then(r => r.json()),
+        ]).then(([oj, sj, tj]) => {
+            const trackedKeys = new Set<string>(
+                (tj.apartments ?? [])
+                    .filter((a: { sourceId: string | null; token: string | null }) => a.sourceId && a.token)
+                    .map((a: { sourceId: string; token: string }) => `${a.sourceId}:${a.token}`),
+            );
+            const listings: ScoredListing[] = (oj.listings ?? []).map((l: ScoredListing) => ({
+                ...l,
+                inTracker: trackedKeys.has(`${l.sourceId}:${l.token}`),
+            }));
+            setItems(listings);
             setSearches((sj.searches ?? []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
             setLoading(false);
         });
@@ -70,10 +80,10 @@ export default function OptimalPage() {
             <div>
                 <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
                     <Sparkles className="h-7 w-7 text-primary" />
-                    Optimal listings
+                    Pool · Optimal
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Tracked listings ranked by how well they match your &ldquo;ranking preferences&rdquo;. Edit any search to tune what counts.
+                    Every scanned listing, ranked by how well it matches your preferences. Hit <b>Add to Interested</b> on any card to push it into the <a href="/tracker" className="text-primary hover:underline">tracker</a>.
                 </p>
             </div>
 

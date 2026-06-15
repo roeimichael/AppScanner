@@ -116,9 +116,54 @@ const blank: SearchFormValue = {
     name: '',
     enabled: true,
     intervalMinutes: 60,
-    sources: ['yad2'],
+    sources: ['yad2', 'onmap'],
     filters: { dealType: 'rent', propertyTypes: ['apartment'] },
 };
+
+type BudgetTier = 'tight' | 'balanced' | 'spacious';
+
+// Budget-aware ranking presets: derive feature importances from the price band.
+// Tight budgets prioritize price + no-fee; bigger budgets prioritize size + amenities.
+function suggestByPrice(filters: FilterSpec): { prefs: Preferences; tier: BudgetTier } | null {
+    const rep = filters.minPrice != null && filters.maxPrice != null
+        ? (filters.minPrice + filters.maxPrice) / 2
+        : filters.maxPrice ?? filters.minPrice ?? null;
+    if (rep == null) return null;
+
+    const sale = filters.dealType === 'sale';
+    const lowCut = sale ? 1_800_000 : 5_500;
+    const highCut = sale ? 3_000_000 : 8_000;
+    const idealRooms = filters.minRooms != null && filters.maxRooms != null
+        ? (filters.minRooms + filters.maxRooms) / 2
+        : filters.minRooms ?? filters.maxRooms ?? 3;
+    const idealPrice = Math.round(rep);
+
+    if (rep <= lowCut) {
+        return { tier: 'tight', prefs: {
+            idealPrice, idealRooms, idealSqm: 65,
+            weightPrice: 9, weightAgencyFee: 9, weightFreshness: 6, weightLrt: 6,
+            weightRooms: 6, weightSqm: 4, weightImage: 4,
+            weightParking: 3, weightElevator: 3, weightBalcony: 3, weightAirCondition: 3,
+            weightShelter: 2, weightWarehouse: 1, weightRenovated: 2, weightFurniture: 2, weightPets: 0,
+        } };
+    }
+    if (rep >= highCut) {
+        return { tier: 'spacious', prefs: {
+            idealPrice, idealRooms, idealSqm: 110,
+            weightPrice: 4, weightAgencyFee: 4, weightFreshness: 5, weightLrt: 5,
+            weightRooms: 7, weightSqm: 8, weightImage: 4,
+            weightParking: 7, weightElevator: 6, weightBalcony: 7, weightAirCondition: 6,
+            weightShelter: 5, weightWarehouse: 4, weightRenovated: 6, weightFurniture: 5, weightPets: 2,
+        } };
+    }
+    return { tier: 'balanced', prefs: {
+        idealPrice, idealRooms, idealSqm: 85,
+        weightPrice: 7, weightAgencyFee: 6, weightFreshness: 5, weightLrt: 6,
+        weightRooms: 7, weightSqm: 6, weightImage: 4,
+        weightParking: 5, weightElevator: 4, weightBalcony: 5, weightAirCondition: 4,
+        weightShelter: 3, weightWarehouse: 2, weightRenovated: 4, weightFurniture: 3, weightPets: 1,
+    } };
+}
 
 interface PreviewListing {
     sourceId: string;
@@ -199,6 +244,16 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
 
     const setPref = <K extends keyof Preferences>(k: K, v: Preferences[K]) =>
         setValue(prev => ({ ...prev, preferences: { ...(prev.preferences ?? {}), [k]: v } }));
+
+    const applyPriceSuggestion = () => {
+        const res = suggestByPrice(value.filters);
+        if (!res) { toast.error('Set a price range first (in Basics).'); return; }
+        setValue(v => ({ ...v, preferences: { ...res.prefs } }));
+        const label = res.tier === 'tight' ? 'tight budget — price & no-fee prioritized'
+            : res.tier === 'spacious' ? 'bigger budget — size & amenities prioritized'
+            : 'mid budget — balanced';
+        toast.success(`Ranking tuned for a ${label}.`);
+    };
 
     const togglePT = (pt: PropertyType, on: boolean) => {
         const cur = value.filters.propertyTypes ?? [];
@@ -337,6 +392,44 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
                                     placeholder={value.filters.dealType === 'sale' ? 'e.g. Petah Tikva 4–5 rooms under 3M' : 'e.g. Petah Tikva 4 rooms under 7000/mo'}
                                 />
                             </div>
+
+                            <Separator />
+
+                            <div className="space-y-4">
+                                <p className="text-xs text-muted-foreground">
+                                    Pick a <strong className="text-foreground">city</strong> and you&apos;re ready to go — a price/room range is optional, and the
+                                    other tabs are just fine-tuning. By default a search returns everything in the city.
+                                </p>
+                                <div className="space-y-1.5">
+                                    <Label>City</Label>
+                                    <Select
+                                        value={value.filters.cityId ? String(value.filters.cityId) : ''}
+                                        onValueChange={v => setFilter('cityId', v ? Number(v) : undefined)}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="Pick a city" /></SelectTrigger>
+                                        <SelectContent>
+                                            {CITIES.map(c => {
+                                                const en = cityNameEn(c);
+                                                return <SelectItem key={c.id} value={String(c.id)}>{en && en !== c.name ? `${en} — ${c.name}` : c.name}</SelectItem>;
+                                            })}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <RangeRow
+                                        label={value.filters.dealType === 'sale' ? 'Price (₪)' : 'Monthly rent (₪)'}
+                                        min={value.filters.minPrice}
+                                        max={value.filters.maxPrice}
+                                        step={value.filters.dealType === 'sale' ? 50_000 : 250}
+                                        onMin={n => setFilter('minPrice', n)}
+                                        onMax={n => setFilter('maxPrice', n)}
+                                    />
+                                    <RangeRow label="Rooms" min={value.filters.minRooms} max={value.filters.maxRooms} step={0.5} onMin={n => setFilter('minRooms', n)} onMax={n => setFilter('maxRooms', n)} />
+                                </div>
+                            </div>
+
+                            <Separator />
+
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <Label>Scan interval</Label>
@@ -415,22 +508,8 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
                             <CardTitle>Location</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-5">
+                            <p className="text-xs text-muted-foreground">City is set in <strong className="text-foreground">Basics</strong>. Use this tab to narrow to specific neighborhoods (optional).</p>
                             <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <Label>City</Label>
-                                    <Select
-                                        value={value.filters.cityId ? String(value.filters.cityId) : ''}
-                                        onValueChange={v => setFilter('cityId', v ? Number(v) : undefined)}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder="Pick city" /></SelectTrigger>
-                                        <SelectContent>
-                                            {CITIES.map(c => {
-                                                const en = cityNameEn(c);
-                                                return <SelectItem key={c.id} value={String(c.id)}>{en && en !== c.name ? `${en} — ${c.name}` : c.name}</SelectItem>;
-                                            })}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
                                 <div className="space-y-1.5">
                                     <Label className="text-muted-foreground">Custom city ID</Label>
                                     <Input
@@ -522,15 +601,7 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
                     <Card className="bg-card/50 backdrop-blur">
                         <CardHeader><CardTitle>Property</CardTitle></CardHeader>
                         <CardContent className="space-y-6">
-                            <RangeRow label="Rooms" min={value.filters.minRooms} max={value.filters.maxRooms} step={0.5} onMin={n => setFilter('minRooms', n)} onMax={n => setFilter('maxRooms', n)} />
-                            <RangeRow
-                                label={value.filters.dealType === 'sale' ? 'Price (₪)' : 'Monthly rent (₪)'}
-                                min={value.filters.minPrice}
-                                max={value.filters.maxPrice}
-                                step={value.filters.dealType === 'sale' ? 50_000 : 250}
-                                onMin={n => setFilter('minPrice', n)}
-                                onMax={n => setFilter('maxPrice', n)}
-                            />
+                            <p className="text-xs text-muted-foreground">Rooms &amp; price live in <strong className="text-foreground">Basics</strong>. These are extra, optional constraints.</p>
                             <RangeRow label="Square meters" min={value.filters.minSqm} max={value.filters.maxSqm} step={1} onMin={n => setFilter('minSqm', n)} onMax={n => setFilter('maxSqm', n)} />
                             <RangeRow label="Floor" min={value.filters.minFloor} max={value.filters.maxFloor} step={1} onMin={n => setFilter('minFloor', n)} onMax={n => setFilter('maxFloor', n)} />
 
@@ -679,6 +750,19 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-6">
+                            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3 flex-wrap">
+                                <div className="min-w-0">
+                                    <div className="text-sm font-medium flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> Suggest by price range</div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Auto-set all the importances from your budget — tight budgets prioritize price &amp; no-fee,
+                                        bigger budgets prioritize size &amp; amenities. You can still tweak below.
+                                    </p>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={applyPriceSuggestion}>
+                                    <Sparkles className="h-3.5 w-3.5" /> Suggest
+                                </Button>
+                            </div>
+
                             <div>
                                 <Label className="mb-3 block">Ideal values + importance</Label>
                                 <div className="space-y-4">

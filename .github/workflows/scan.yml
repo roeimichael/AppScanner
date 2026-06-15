@@ -9,7 +9,7 @@ name: appscanner scan
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # every 15 min (UTC). GitHub may delay by a few min under load.
+    - cron: '*/30 * * * *'   # every 30 min (UTC) — keeps Yad2 under ScraperAPI's free 1k/mo. GitHub may delay a few min.
   workflow_dispatch: {}       # allow manual "Run workflow" from the Actions tab
 
 jobs:

@@ -7,6 +7,7 @@ import {
     appendScanRuns,
     getSettings,
     listSearches,
+    listTrackedKeys,
     loadSeen,
     saveSeen,
     updateSearchRunMeta,
@@ -109,6 +110,8 @@ export const runOneSearch = async (search: SearchRecord, opts: RunOptions = {}):
     const runRecords: import('./storage').ScanRunRecord[] = [];
     const sourceErrors: string[] = [];
     try {
+        // Listings the user is tracking — protected from auto-removal. Best-effort.
+        const trackedKeys = await listTrackedKeys().catch(() => new Set<string>());
         for (const sourceId of search.sources) {
             const source = getSource(sourceId);
             if (!source) throw new Error(`Unknown source: ${sourceId}`);
@@ -175,14 +178,21 @@ export const runOneSearch = async (search: SearchRecord, opts: RunOptions = {}):
                 };
             }
 
-            // Detect removed listings: previously seen, missing this scan, last seen > 24h ago
-            for (const [key, entry] of Object.entries(updates)) {
-                if (seenInScan.has(key)) continue;
-                if (entry.status === 'removed') continue;
-                const ageMs = now.getTime() - new Date(entry.lastSeenAt).getTime();
-                if (ageMs >= REMOVED_AFTER_MS) {
-                    updates[key] = { ...entry, status: 'removed' };
-                    events.push({ kind: 'removed', listing: entry.snapshot, oldPrice: entry.snapshot.price });
+            // Detect removed listings: previously seen, missing this scan, last seen > 24h ago.
+            // Guard: a source returning 0 results is almost always a transient fetch glitch
+            // (anti-bot, quota, outage), not a genuinely empty market — never mass-delist on it.
+            // Also never auto-remove a tracked or favorited listing: the user is on those.
+            if (listings.length > 0) {
+                for (const [key, entry] of Object.entries(updates)) {
+                    if (seenInScan.has(key)) continue;
+                    if (entry.status === 'removed') continue;
+                    if (entry.userState === 'favorite') continue;
+                    if (trackedKeys.has(key)) continue;
+                    const ageMs = now.getTime() - new Date(entry.lastSeenAt).getTime();
+                    if (ageMs >= REMOVED_AFTER_MS) {
+                        updates[key] = { ...entry, status: 'removed' };
+                        events.push({ kind: 'removed', listing: entry.snapshot, oldPrice: entry.snapshot.price });
+                    }
                 }
             }
 

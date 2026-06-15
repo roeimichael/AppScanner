@@ -237,6 +237,20 @@ export const saveSeen = async (seenKey: string, seen: Record<string, SeenEntry>)
     }
 };
 
+// Set of `${sourceId}:${token}` for every apartment in the tracker. Used by the
+// scanner to never auto-mark a tracked listing as removed.
+export const listTrackedKeys = async (): Promise<Set<string>> => {
+    const { data, error } = await supabase()
+        .from('tracked_apartments')
+        .select('source_id, token');
+    if (error) throw new Error(`listTrackedKeys: ${error.message}`);
+    const set = new Set<string>();
+    for (const r of (data ?? []) as { source_id: string | null; token: string | null }[]) {
+        if (r.source_id && r.token) set.add(`${r.source_id}:${r.token}`);
+    }
+    return set;
+};
+
 export const listAllSeenListings = async (): Promise<{ searchId: string; entry: SeenEntry }[]> => {
     const { data, error } = await supabase().from('seen_listings').select('*');
     if (error) throw new Error(`listAllSeenListings: ${error.message}`);

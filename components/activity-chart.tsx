@@ -60,10 +60,11 @@ export function ActivityChart() {
                             const total = d.newCount;
                             const heightPct = total === 0 ? 1 : (total / maxCount) * 100;
                             return (
-                                <div key={d.date} className="flex-1 flex flex-col items-center gap-1 min-w-0 group">
+                                <div key={d.date} className="flex-1 flex flex-col items-center gap-1 min-w-0 group h-full">
                                     <div className="text-[10px] font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                                         {total}
                                     </div>
+                                    <div className="flex-1 w-full flex items-end">
                                     <div
                                         className="w-full rounded-t flex flex-col-reverse overflow-hidden bg-muted/40"
                                         style={{ height: `${heightPct}%`, minHeight: '4px' }}
@@ -80,6 +81,7 @@ export function ActivityChart() {
                                                 />
                                             );
                                         })}
+                                    </div>
                                     </div>
                                 </div>
                             );

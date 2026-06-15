@@ -69,10 +69,11 @@ export function ListingFlowChart() {
                     {buckets.map(b => {
                         const heightPct = b.count === 0 ? 1 : (b.count / max) * 100;
                         return (
-                            <div key={b.bucket} className="flex-1 flex flex-col items-center min-w-0 group" title={`${b.bucket} — ${b.count}`}>
+                            <div key={b.bucket} className="flex-1 flex flex-col items-center min-w-0 group h-full" title={`${b.bucket} — ${b.count}`}>
                                 <div className="text-[9px] font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity h-3">
                                     {b.count || ''}
                                 </div>
+                                <div className="flex-1 w-full flex items-end">
                                 <div
                                     className="w-full rounded-t flex flex-col-reverse overflow-hidden bg-muted/30"
                                     style={{ height: `${heightPct}%`, minHeight: '3px' }}
@@ -88,6 +89,7 @@ export function ListingFlowChart() {
                                             />
                                         );
                                     })}
+                                </div>
                                 </div>
                             </div>
                         );

@@ -32,6 +32,7 @@ interface OnmapAddress {
 interface OnmapListing {
     _id?: string;
     id?: string | number;
+    slug?: string;
     search_option?: 'rent' | 'rent-short' | 'buy';
     property_type?: string;
     price?: number;
@@ -92,7 +93,8 @@ const normalize = (it: OnmapListing): Listing | null => {
     return {
         sourceId: 'onmap',
         token,
-        link: `https://www.onmap.co.il/property/${token}`,
+        // Public listing page is /home-details/<slug>; the bare id 404s in their SPA.
+        link: `https://www.onmap.co.il/home-details/${it.slug ?? token}`,
         city: he.city_name ?? a.en?.city_name,
         neighborhood: he.neighborhood ?? a.en?.neighborhood,
         street: he.street_name ?? a.en?.street_name,

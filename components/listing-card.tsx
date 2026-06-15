@@ -6,6 +6,7 @@ import { Bed, BookmarkPlus, Building2, Check, Clock, Coins, ExternalLink, Heart,
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { nearestStation } from '@/lib/lrt';
 
 export interface ListingCardData {
     sourceId: string;
@@ -20,6 +21,8 @@ export interface ListingCardData {
     rooms?: number;
     sqm?: number;
     price?: number;
+    lat?: number;
+    lon?: number;
     propertyType?: string;
     isAgency?: boolean;
     tags?: string[];
@@ -88,6 +91,7 @@ export function ListingCard({ data, compact = false }: { data: ListingCardData; 
     const addr = [data.street, data.houseNumber].filter(Boolean).join(' ');
     const fullAddr = [data.neighborhood, addr].filter(Boolean).join(' • ');
     const src = getSourceStyle(data.sourceId);
+    const lrt = nearestStation(data.lat, data.lon);
     const detailHref = `/listings/${data.sourceId}/${data.token}`;
     const isRemoved = data.status === 'removed' || data.eventKind === 'removed';
     const isPriceDrop = data.eventKind === 'price_drop';
@@ -194,6 +198,14 @@ export function ListingCard({ data, compact = false }: { data: ListingCardData; 
                         {data.rooms != null && <Stat icon={<Bed className="h-3 w-3" />} label={`${data.rooms} rooms`} />}
                         {data.sqm != null && <Stat icon={<Maximize2 className="h-3 w-3" />} label={`${data.sqm} sqm`} />}
                         {data.floor != null && <Stat icon={<Building2 className="h-3 w-3" />} label={`Floor ${data.floor}`} />}
+                        {lrt && (
+                            <span
+                                title={`${lrt.distanceM}m to ${lrt.station.name} (Red Line)`}
+                                className="inline-flex items-center gap-1 text-xs text-red-300 bg-red-500/15 rounded-md px-2 py-0.5 font-mono"
+                            >
+                                🚈 {lrt.walkMin} min
+                            </span>
+                        )}
                     </div>
 
                     {(data.createdAt || data.firstSeenAt) && (

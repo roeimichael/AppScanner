@@ -82,61 +82,72 @@ export function SortFilterBar({
 
     return (
         <Card className="p-3 bg-card/50 backdrop-blur space-y-3">
+            {/* Search + result count */}
             <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2">
-                    <SearchIcon className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+                    <SearchIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                     <Input
                         type="text"
-                        placeholder="Search city, street, neighborhood…"
+                        placeholder="Search by city, street or neighborhood…"
                         value={filters.text ?? ''}
                         onChange={(e) => onFilters({ ...filters, text: e.target.value || undefined })}
-                        className="h-8 w-64"
+                        className="h-8 max-w-xs"
                     />
                 </div>
-
-                <DropdownMenu>
-                    <DropdownMenuTrigger render={
-                        <Button variant="outline" size="sm" className="gap-2">
-                            {active.icon}
-                            <span>{active.label}</span>
-                        </Button>
-                    } />
-                    <DropdownMenuContent align="start">
-                        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {SORT_OPTIONS.map(o => (
-                            <DropdownMenuItem key={o.key} onClick={() => onSort(o.key)} className={sort === o.key ? 'bg-accent' : ''}>
-                                <span className="mr-2">{o.icon}</span>
-                                {o.label}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-
-                <div className="h-6 w-px bg-border" />
-
-                <Chip on={filters.favoritesOnly} onClick={() => toggle('favoritesOnly')} icon={<Heart className="h-3 w-3" />} label="Favorites" tint="pink" />
-                <Chip on={filters.hasImage} onClick={() => toggle('hasImage')} icon={<ImageIcon className="h-3 w-3" />} label="With photo" />
-                <Chip on={filters.noAgency} onClick={() => toggle('noAgency')} icon={<Coins className="h-3 w-3" />} label="No fee" tint="emerald" />
-                <Chip on={filters.priceDropOnly} onClick={() => toggle('priceDropOnly')} icon={<TrendingDown className="h-3 w-3" />} label="Price drop" tint="emerald" />
-                <Chip on={!filters.hideDismissed} onClick={() => toggle('hideDismissed')} icon={<X className="h-3 w-3" />} label="Show dismissed" />
-                <Chip on={!filters.hideRemoved} onClick={() => toggle('hideRemoved')} icon={<MapPinned className="h-3 w-3" />} label="Show removed" />
-
-                <div className="ml-auto flex items-center gap-2">
+                <div className="flex items-center gap-2">
                     {activeFilterCount > 0 && (
-                        <Button variant="ghost" size="sm" onClick={clearAll} className="text-xs h-7">
-                            Clear filters
+                        <Button variant="ghost" size="sm" onClick={clearAll} className="text-xs h-7 gap-1">
+                            <X className="h-3 w-3" /> Clear ({activeFilterCount})
                         </Button>
                     )}
-                    <Badge variant="outline" className="font-mono">
-                        {filteredCount === totalCount ? `${totalCount}` : `${filteredCount}/${totalCount}`}
+                    <Badge variant="outline" className="font-mono" title="Showing / total listings">
+                        {filteredCount === totalCount ? `${totalCount}` : `${filteredCount} of ${totalCount}`}
                     </Badge>
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-                <NumPair label="Price"
+            {/* Sort + toggle filters, grouped by intent */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/40 pt-3">
+                <Section label="Sort">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger render={
+                            <Button variant="outline" size="sm" className="gap-2 h-7">
+                                {active.icon}
+                                <span>{active.label}</span>
+                            </Button>
+                        } />
+                        <DropdownMenuContent align="start">
+                            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {SORT_OPTIONS.map(o => (
+                                <DropdownMenuItem key={o.key} onClick={() => onSort(o.key)} className={sort === o.key ? 'bg-accent' : ''}>
+                                    <span className="mr-2">{o.icon}</span>
+                                    {o.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </Section>
+
+                <Section label="Show only">
+                    <Chip on={filters.favoritesOnly} onClick={() => toggle('favoritesOnly')} icon={<Heart className="h-3 w-3" />} label="Favorites" tint="pink" title="Only listings you've favorited" />
+                    <Chip on={filters.hasImage} onClick={() => toggle('hasImage')} icon={<ImageIcon className="h-3 w-3" />} label="With photo" title="Only listings that include a photo" />
+                    <Chip on={filters.noAgency} onClick={() => toggle('noAgency')} icon={<Coins className="h-3 w-3" />} label="Private" tint="emerald" title="Private listings only — no agency fee" />
+                    <Chip on={filters.priceDropOnly} onClick={() => toggle('priceDropOnly')} icon={<TrendingDown className="h-3 w-3" />} label="Price drop" tint="emerald" title="Only listings whose price recently dropped" />
+                </Section>
+
+                <Section label="Also include">
+                    <Chip on={!filters.hideDismissed} onClick={() => toggle('hideDismissed')} icon={<X className="h-3 w-3" />} label="Dismissed" title="Also show listings you've dismissed" />
+                    <Chip on={!filters.hideRemoved} onClick={() => toggle('hideRemoved')} icon={<MapPinned className="h-3 w-3" />} label="Removed" title="Also show listings no longer online" />
+                </Section>
+            </div>
+
+            {/* Numeric range refinement */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/40 pt-3 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <Filter className="h-3.5 w-3.5" /> Narrow by
+                </span>
+                <NumPair label="Price ₪"
                     minVal={filters.minPrice} maxVal={filters.maxPrice}
                     setMin={v => setNum('minPrice', v)} setMax={v => setNum('maxPrice', v)}
                     step={250}
@@ -146,7 +157,7 @@ export function SortFilterBar({
                     setMin={v => setNum('minRooms', v)} setMax={v => setNum('maxRooms', v)}
                     step={0.5}
                 />
-                <NumPair label="Min sqm"
+                <NumPair label="Min m²"
                     minVal={filters.minSqm}
                     setMin={v => setNum('minSqm', v)}
                 />
@@ -155,8 +166,17 @@ export function SortFilterBar({
     );
 }
 
-function Chip({ on, onClick, icon, label, tint }: {
-    on: boolean; onClick: () => void; icon: React.ReactNode; label: string; tint?: 'pink' | 'emerald' | 'amber';
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">{label}</span>
+            <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+        </div>
+    );
+}
+
+function Chip({ on, onClick, icon, label, tint, title }: {
+    on: boolean; onClick: () => void; icon: React.ReactNode; label: string; tint?: 'pink' | 'emerald' | 'amber'; title?: string;
 }) {
     const tints: Record<string, string> = {
         pink: 'bg-pink-500/15 border-pink-500/40 text-pink-400',
@@ -168,6 +188,7 @@ function Chip({ on, onClick, icon, label, tint }: {
         <button
             type="button"
             onClick={onClick}
+            title={title}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs transition-colors ${on ? onClass : 'bg-background border-border text-muted-foreground hover:bg-accent'}`}
         >
             {icon}{label}

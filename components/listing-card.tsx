@@ -102,11 +102,10 @@ export function ListingCard({ data, compact = false }: { data: ListingCardData; 
         e.stopPropagation();
         if (tracking || tracked) return;
         setTracking(true);
-        const me = typeof window !== 'undefined' ? localStorage.getItem('tracker:me') : null;
         try {
             const r = await fetch('/api/tracker/apartments', {
                 method: 'POST',
-                body: JSON.stringify({ mode: 'import', sourceId: data.sourceId, token: data.token, createdBy: me }),
+                body: JSON.stringify({ mode: 'import', sourceId: data.sourceId, token: data.token }),
             });
             if (r.ok) { setTracked(true); toast.success('Added to tracker'); }
             else { const j = await r.json().catch(() => ({})); toast.error(j.error ?? 'Failed'); }

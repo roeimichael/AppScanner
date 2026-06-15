@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ExternalLink, MapPin, MessageSquare, Plus, Trash2, Users, X } from 'lucide-react';
+import { ExternalLink, MapPin, MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,14 +12,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-type Status = 'interested' | 'contacted' | 'scheduled' | 'visited' | 'rejected' | 'signed';
+type Status = 'interested' | 'contacted' | 'scheduled' | 'visited' | 'rejected';
 
-const STATUSES: Status[] = ['interested', 'contacted', 'scheduled', 'visited', 'rejected', 'signed'];
+const STATUSES: Status[] = ['interested', 'contacted', 'scheduled', 'visited', 'rejected'];
 const STATUS_LABEL: Record<Status, string> = {
     interested: 'Interested', contacted: 'Contacted', scheduled: 'Scheduled',
-    visited: 'Visited', rejected: 'Rejected', signed: 'Signed',
+    visited: 'Visited', rejected: 'Rejected',
 };
 const STATUS_BAR: Record<Status, string> = {
     interested: 'bg-blue-500',
@@ -27,8 +26,10 @@ const STATUS_BAR: Record<Status, string> = {
     scheduled:  'bg-violet-500',
     visited:    'bg-teal-500',
     rejected:   'bg-zinc-500',
-    signed:     'bg-emerald-500',
 };
+
+// Single-user app: notes are all yours, so we tag them with a fixed author.
+const ME = 'me';
 
 interface Apt {
     id: string;
@@ -44,8 +45,6 @@ interface Apt {
     city: string | null;
     imageUrl: string | null;
     status: Status;
-    assignedTo: string | null;
-    createdBy: string | null;
     autoImported: boolean;
     createdAt: string;
     updatedAt: string;
@@ -69,33 +68,24 @@ const fmtAge = (iso: string) => {
 export default function TrackerPage() {
     const [apartments, setApartments] = useState<Apt[]>([]);
     const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
-    const [roommates, setRoommates] = useState<string[]>([]);
-    const [me, setMe] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [openApt, setOpenApt] = useState<string | null>(null);
     const [hideRejected, setHideRejected] = useState(true);
     const [draggingId, setDraggingId] = useState<string | null>(null);
 
     const load = async () => {
-        const [a, n, r] = await Promise.all([
+        const [a, n] = await Promise.all([
             fetch('/api/tracker/apartments').then(x => x.json()),
             fetch('/api/tracker/neighborhoods').then(x => x.json()),
-            fetch('/api/tracker/roommates').then(x => x.json()),
         ]);
         setApartments(a.apartments ?? []);
         setNeighborhoods(n.neighborhoods ?? []);
-        setRoommates(r.roommates ?? []);
-        if (!me && (r.roommates ?? []).length > 0) {
-            const saved = typeof window !== 'undefined' ? localStorage.getItem('tracker:me') : null;
-            setMe(saved && r.roommates.includes(saved) ? saved : r.roommates[0]);
-        }
         setLoading(false);
     };
     useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-    useEffect(() => { if (me && typeof window !== 'undefined') localStorage.setItem('tracker:me', me); }, [me]);
 
     const byStatus = useMemo(() => {
-        const groups: Record<Status, Apt[]> = { interested: [], contacted: [], scheduled: [], visited: [], rejected: [], signed: [] };
+        const groups: Record<Status, Apt[]> = { interested: [], contacted: [], scheduled: [], visited: [], rejected: [] };
         for (const a of apartments) {
             if (a.status in groups) groups[a.status as Status].push(a);
         }
@@ -106,12 +96,6 @@ export default function TrackerPage() {
         setApartments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
         const r = await fetch(`/api/tracker/apartments/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
         if (!r.ok) { toast.error('Status update failed'); load(); }
-    };
-
-    const setAssigned = async (id: string, assignedTo: string | null) => {
-        setApartments(prev => prev.map(a => a.id === id ? { ...a, assignedTo } : a));
-        const r = await fetch(`/api/tracker/apartments/${id}`, { method: 'PATCH', body: JSON.stringify({ assignedTo }) });
-        if (!r.ok) { toast.error('Assignee update failed'); load(); }
     };
 
     const remove = async (id: string) => {
@@ -128,21 +112,10 @@ export default function TrackerPage() {
                 <div>
                     <h1 className="text-3xl font-semibold tracking-tight">Tracker</h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Apartments we&apos;re actively chasing. Promote from <a href="/optimal" className="text-primary hover:underline">/optimal</a> or paste a link manually.
+                        Apartments you&apos;re actively chasing. Promote from the <a href="/optimal" className="text-primary hover:underline">pool</a> or paste a link manually.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    {roommates.length > 0 && (
-                        <div className="flex items-center gap-2 text-sm">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <Select value={me} onValueChange={(v) => v && setMe(v)}>
-                                <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="I am…" /></SelectTrigger>
-                                <SelectContent>{roommates.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </div>
-                    )}
-                    <AddManualDialog me={me} onAdded={load} />
-                </div>
+                <AddManualDialog onAdded={load} />
             </div>
 
             <NeighborhoodList neighborhoods={neighborhoods} onChange={load} />
@@ -151,7 +124,7 @@ export default function TrackerPage() {
                 <div>
                     <span className="font-medium text-foreground">{apartments.length}</span> total ·
                     <span> {byStatus.rejected.length} rejected</span> ·
-                    drag between columns to update status
+                    drag a card between columns to change its stage
                 </div>
                 <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
                     <input type="checkbox" checked={hideRejected} onChange={(e) => setHideRejected(e.target.checked)} className="h-3.5 w-3.5" />
@@ -160,13 +133,13 @@ export default function TrackerPage() {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-xl" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-xl" />)}
                 </div>
             ) : apartments.length === 0 ? (
                 <Card className="py-16 text-center bg-card/50 backdrop-blur border-dashed">
                     <p className="text-sm text-muted-foreground">
-                        Nothing here yet. Browse the pool on <a href="/optimal" className="text-primary hover:underline">/optimal</a> and hit <b>+ Add to Interested</b>, or paste a link with <b>Add link</b>.
+                        Nothing here yet. Browse the <a href="/optimal" className="text-primary hover:underline">pool</a> and hit <b>+ Add to Interested</b>, or paste a link with <b>Add link</b>.
                     </p>
                 </Card>
             ) : (
@@ -176,12 +149,10 @@ export default function TrackerPage() {
                             key={status}
                             status={status}
                             apartments={byStatus[status]}
-                            roommates={roommates}
                             draggingId={draggingId}
                             onDragStart={setDraggingId}
                             onDragEnd={() => setDraggingId(null)}
                             onDrop={(id) => setStatus(id, status)}
-                            onAssign={setAssigned}
                             onOpen={setOpenApt}
                             onRemove={remove}
                         />
@@ -191,22 +162,20 @@ export default function TrackerPage() {
 
             <Dialog open={!!openApt} onOpenChange={(v) => !v && setOpenApt(null)}>
                 <DialogContent className="max-w-2xl">
-                    {openApt && <AptDetail id={openApt} me={me} onClose={() => setOpenApt(null)} onChange={load} />}
+                    {openApt && <AptDetail id={openApt} onClose={() => setOpenApt(null)} onChange={load} />}
                 </DialogContent>
             </Dialog>
         </div>
     );
 }
 
-function KanbanColumn({ status, apartments, roommates, draggingId, onDragStart, onDragEnd, onDrop, onAssign, onOpen, onRemove }: {
+function KanbanColumn({ status, apartments, draggingId, onDragStart, onDragEnd, onDrop, onOpen, onRemove }: {
     status: Status;
     apartments: Apt[];
-    roommates: string[];
     draggingId: string | null;
     onDragStart: (id: string) => void;
     onDragEnd: () => void;
     onDrop: (id: string) => void;
-    onAssign: (id: string, who: string | null) => void;
     onOpen: (id: string) => void;
     onRemove: (id: string) => void;
 }) {
@@ -238,11 +207,9 @@ function KanbanColumn({ status, apartments, roommates, draggingId, onDragStart, 
                         <KanbanCard
                             key={a.id}
                             apt={a}
-                            roommates={roommates}
                             isDragging={draggingId === a.id}
                             onDragStart={() => onDragStart(a.id)}
                             onDragEnd={onDragEnd}
-                            onAssign={(who) => onAssign(a.id, who)}
                             onOpen={() => onOpen(a.id)}
                             onRemove={() => onRemove(a.id)}
                         />
@@ -253,13 +220,11 @@ function KanbanColumn({ status, apartments, roommates, draggingId, onDragStart, 
     );
 }
 
-function KanbanCard({ apt, roommates, isDragging, onDragStart, onDragEnd, onAssign, onOpen, onRemove }: {
+function KanbanCard({ apt, isDragging, onDragStart, onDragEnd, onOpen, onRemove }: {
     apt: Apt;
-    roommates: string[];
     isDragging: boolean;
     onDragStart: () => void;
     onDragEnd: () => void;
-    onAssign: (who: string | null) => void;
     onOpen: () => void;
     onRemove: () => void;
 }) {
@@ -321,18 +286,17 @@ function KanbanCard({ apt, roommates, isDragging, onDragStart, onDragEnd, onAssi
                     <ExternalLink className="h-3.5 w-3.5" /> Open listing
                 </a>
                 <div className="flex items-center gap-1">
-                    <AssigneePicker value={apt.assignedTo} roommates={roommates} onChange={onAssign} />
-                    <button onClick={onOpen} className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/70 rounded px-1.5 py-0.5 transition-colors">
+                    <button onClick={onOpen} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/70 rounded px-1.5 py-0.5 transition-colors">
                         <MessageSquare className="h-2.5 w-2.5" />
-                        {apt.noteCount > 0 ? apt.noteCount : 'note'}
+                        {apt.noteCount > 0 ? `${apt.noteCount} note${apt.noteCount > 1 ? 's' : ''}` : 'add note'}
                     </button>
-                    <button onClick={onRemove} className="text-muted-foreground hover:text-destructive p-0.5">
+                    <button onClick={onRemove} className="ml-auto text-muted-foreground hover:text-destructive p-0.5">
                         <Trash2 className="h-3 w-3" />
                     </button>
                 </div>
                 {apt.lastNote && (
                     <div className="text-[10px] text-muted-foreground line-clamp-1 italic border-t border-border/30 pt-1">
-                        <b className="text-foreground/80 not-italic">{apt.lastNote.author}:</b> {apt.lastNote.body}
+                        {apt.lastNote.body}
                     </div>
                 )}
             </div>
@@ -340,28 +304,7 @@ function KanbanCard({ apt, roommates, isDragging, onDragStart, onDragEnd, onAssi
     );
 }
 
-function AssigneePicker({ value, roommates, onChange }: { value: string | null; roommates: string[]; onChange: (v: string | null) => void }) {
-    if (roommates.length === 0) return null;
-    const initial = value?.[0]?.toUpperCase() ?? '?';
-    return (
-        <Select value={value ?? '__none'} onValueChange={(v) => onChange(v === '__none' ? null : v)}>
-            <SelectTrigger className={`h-6 w-auto gap-1 px-1.5 text-[10px] border-0 ${value ? 'bg-primary/20 text-primary-foreground' : 'bg-muted/50'}`}>
-                {value ? (
-                    <span className="inline-flex items-center gap-1">
-                        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold">{initial}</span>
-                        {value}
-                    </span>
-                ) : <span className="text-muted-foreground">unassigned</span>}
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="__none">Unassigned</SelectItem>
-                {roommates.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-        </Select>
-    );
-}
-
-function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onClose: () => void; onChange: () => void }) {
+function AptDetail({ id, onClose, onChange }: { id: string; onClose: () => void; onChange: () => void }) {
     const [apt, setApt] = useState<Apt | null>(null);
     const [notes, setNotes] = useState<Note[]>([]);
     const [draft, setDraft] = useState('');
@@ -378,10 +321,9 @@ function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onCl
     const submitNote = async () => {
         const body = draft.trim();
         if (!body) return;
-        if (!me) { toast.error('Pick who you are first (top right)'); return; }
         setPosting(true);
         try {
-            const r = await fetch(`/api/tracker/apartments/${id}/notes`, { method: 'POST', body: JSON.stringify({ author: me, body }) });
+            const r = await fetch(`/api/tracker/apartments/${id}/notes`, { method: 'POST', body: JSON.stringify({ author: ME, body }) });
             if (r.ok) { setDraft(''); await load(); onChange(); }
             else toast.error('Post failed');
         } finally { setPosting(false); }
@@ -405,7 +347,6 @@ function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onCl
                 </a>
                 <div className="flex items-center gap-2 text-sm flex-wrap">
                     <Badge className={`text-white border-0 ${STATUS_BAR[apt.status]}`}>{STATUS_LABEL[apt.status]}</Badge>
-                    {apt.assignedTo && <Badge variant="outline">→ {apt.assignedTo}</Badge>}
                     <span className="text-muted-foreground">{fmtPrice(apt.price)}{apt.price ? '/mo' : ''}</span>
                     {apt.rooms && <span className="text-muted-foreground">· {apt.rooms} rooms</span>}
                     {apt.sqm && <span className="text-muted-foreground">· {apt.sqm} sqm</span>}
@@ -422,10 +363,9 @@ function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onCl
                         {notes.length === 0 && <p className="text-xs text-muted-foreground">No notes yet.</p>}
                         {notes.map(n => (
                             <div key={n.id} className="bg-muted/40 rounded-md p-2 text-sm group relative">
-                                <div className="flex items-center gap-2 text-[11px] mb-0.5">
-                                    <span className="font-medium">{n.author}</span>
-                                    <span className="text-muted-foreground">{fmtAge(n.createdAt)} ago</span>
-                                    <button onClick={() => deleteNote(n.id)} className="ml-auto opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
+                                <div className="flex items-center gap-2 text-[11px] mb-0.5 text-muted-foreground">
+                                    <span>{fmtAge(n.createdAt)} ago</span>
+                                    <button onClick={() => deleteNote(n.id)} className="ml-auto opacity-0 group-hover:opacity-100 hover:text-destructive">
                                         <X className="h-3 w-3" />
                                     </button>
                                 </div>
@@ -437,12 +377,12 @@ function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onCl
                         <Textarea
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
-                            placeholder={me ? `Add note as ${me} (Cmd/Ctrl+Enter)…` : 'Pick who you are first (top right)'}
+                            placeholder="Add a note (Cmd/Ctrl+Enter to post)…"
                             rows={2}
                             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitNote(); }}
                         />
                         <div className="flex justify-end">
-                            <Button size="sm" onClick={submitNote} disabled={!draft.trim() || posting || !me}>Post</Button>
+                            <Button size="sm" onClick={submitNote} disabled={!draft.trim() || posting}>Post</Button>
                         </div>
                     </div>
                 </div>
@@ -454,7 +394,7 @@ function AptDetail({ id, me, onClose, onChange }: { id: string; me: string; onCl
     );
 }
 
-function AddManualDialog({ me, onAdded }: { me: string; onAdded: () => void }) {
+function AddManualDialog({ onAdded }: { onAdded: () => void }) {
     const [open, setOpen] = useState(false);
     const [url, setUrl] = useState('');
     const [title, setTitle] = useState('');
@@ -478,7 +418,6 @@ function AddManualDialog({ me, onAdded }: { me: string; onAdded: () => void }) {
                     rooms: rooms ? Number(rooms) : null,
                     sqm: sqm ? Number(sqm) : null,
                     neighborhood: neighborhood.trim() || null,
-                    createdBy: me || null,
                 }),
             });
             if (r.ok) { toast.success('Added'); reset(); setOpen(false); onAdded(); }

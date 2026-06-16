@@ -310,14 +310,14 @@ export const getSettings = async (): Promise<Settings> => {
     };
 };
 
-export const saveSettings = async (settings: Settings) => {
-    const { error } = await supabase().from('settings').upsert({
-        id: 1,
-        telegram_bot_token: settings.telegramBotToken,
-        telegram_chat_id: settings.telegramChatId,
-        telegram_extra_chat_ids: settings.telegramExtraChatIds ?? [],
-        updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+// Partial update: only columns explicitly provided are written, so saving one field
+// (e.g. chat ID) never clobbers another (e.g. an already-saved bot token left blank in the form).
+export const saveSettings = async (settings: Partial<Settings>) => {
+    const row: Record<string, unknown> = { id: 1, updated_at: new Date().toISOString() };
+    if (settings.telegramBotToken !== undefined) row.telegram_bot_token = settings.telegramBotToken;
+    if (settings.telegramChatId !== undefined) row.telegram_chat_id = settings.telegramChatId;
+    if (settings.telegramExtraChatIds !== undefined) row.telegram_extra_chat_ids = settings.telegramExtraChatIds;
+    const { error } = await supabase().from('settings').upsert(row, { onConflict: 'id' });
     if (error) throw new Error(`saveSettings: ${error.message}`);
 };
 

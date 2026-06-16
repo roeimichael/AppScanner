@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Bot, Check, ChevronRight, Clock, ExternalLink, Loader2, MessageSquare, Send, Shield } from 'lucide-react';
+import { Activity, Bot, Check, ChevronRight, Clock, ExternalLink, Loader2, MessageSquare, Plus, Send, Shield, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,9 +20,19 @@ interface DiscoveredChat {
     username?: string;
 }
 
+interface Stats {
+    searchesTotal: number;
+    searchesEnabled: number;
+    totalTracked: number;
+    newLast24h: number;
+    lastRunAt: string | null;
+}
+
 export default function SettingsPage() {
     const [token, setToken] = useState('');
     const [chatId, setChatId] = useState('');
+    const [extras, setExtras] = useState<string[]>([]);
+    const [newExtra, setNewExtra] = useState('');
     const [configured, setConfigured] = useState(false);
     const [masked, setMasked] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
@@ -29,26 +40,32 @@ export default function SettingsPage() {
     const [chats, setChats] = useState<DiscoveredChat[]>([]);
     const [bot, setBot] = useState<{ first_name?: string; username?: string } | null>(null);
     const [testing, setTesting] = useState(false);
+    const [stats, setStats] = useState<Stats | null>(null);
 
     const refresh = async () => {
         const j = await fetch('/api/settings').then(r => r.json());
         setMasked(j.telegramBotToken);
         setChatId(j.telegramChatId ?? '');
+        setExtras(j.telegramExtraChatIds ?? []);
         setConfigured(!!j.configured);
     };
 
-    useEffect(() => { refresh(); }, []);
+    useEffect(() => {
+        refresh();
+        fetch('/api/stats').then(r => r.json()).then(setStats).catch(() => {});
+    }, []);
 
     const save = async () => {
         setSaving(true);
         try {
+            // Only send the token when the user actually typed a new one — otherwise the
+            // saved token stays untouched (the field shows a mask, not the real value).
+            const payload: Record<string, unknown> = { telegramChatId: chatId || null };
+            if (token) payload.telegramBotToken = token;
             const r = await fetch('/api/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    telegramBotToken: token || null,
-                    telegramChatId: chatId || null,
-                }),
+                body: JSON.stringify(payload),
             });
             if (!r.ok) { toast.error('Save failed'); return; }
             toast.success('Saved');
@@ -58,6 +75,26 @@ export default function SettingsPage() {
             setSaving(false);
         }
     };
+
+    const saveExtras = async (next: string[]) => {
+        const r = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegramExtraChatIds: next }),
+        });
+        if (r.ok) { setExtras(next); toast.success('Saved'); }
+        else toast.error('Save failed');
+    };
+
+    const addExtra = () => {
+        const v = newExtra.trim();
+        if (!v) return;
+        if (extras.includes(v) || v === chatId) { toast.info('Already added'); setNewExtra(''); return; }
+        saveExtras([...extras, v]);
+        setNewExtra('');
+    };
+
+    const removeExtra = (id: string) => saveExtras(extras.filter(e => e !== id));
 
     const discoverChats = async () => {
         if (!token) { toast.error('Paste the bot token first'); return; }
@@ -88,7 +125,7 @@ export default function SettingsPage() {
         try {
             const r = await fetch('/api/settings', { method: 'POST' });
             const j = await r.json();
-            if (r.ok) toast.success('Test sent — check Telegram');
+            if (r.ok) toast.success(`Test sent to ${j.sent ?? 1} chat${(j.sent ?? 1) > 1 ? 's' : ''}${j.failed ? ` (${j.failed} failed)` : ''} — check Telegram`);
             else toast.error(j.error ?? 'Test failed');
         } finally {
             setTesting(false);
@@ -104,7 +141,7 @@ export default function SettingsPage() {
         <div className="space-y-6 max-w-3xl">
             <div>
                 <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-                <p className="text-sm text-muted-foreground mt-1">Configure where new-listing notifications go.</p>
+                <p className="text-sm text-muted-foreground mt-1">Notification targets, scan status, and how scanning is wired.</p>
             </div>
 
             {configured && (
@@ -218,13 +255,73 @@ export default function SettingsPage() {
             <Card className="bg-card/50 backdrop-blur">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        Also notify these chats
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                        Extra chat IDs get every alert too — handy for a shared group or a channel. Add the bot to the group, send a message there, use <b>Find chats</b> above to get its ID (groups are negative numbers), then paste it here.
+                    </p>
+                    {extras.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {extras.map(id => (
+                                <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border bg-muted/40 font-mono text-xs">
+                                    {id}
+                                    <button onClick={() => removeExtra(id)} className="text-muted-foreground hover:text-destructive" title="Remove">
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                        <Input
+                            placeholder="-1001234567890"
+                            value={newExtra}
+                            onChange={e => setNewExtra(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addExtra(); }}
+                            className="font-mono max-w-[16rem]"
+                        />
+                        <Button variant="outline" size="sm" onClick={addExtra} disabled={!newExtra.trim()}>
+                            <Plus className="h-3.5 w-3.5" /> Add chat
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="bg-card/50 backdrop-blur">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-primary" />
+                        Scan status
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {stats ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                            <Stat label="Searches" value={`${stats.searchesEnabled}/${stats.searchesTotal}`} hint="enabled" />
+                            <Stat label="Listings tracked" value={stats.totalTracked.toLocaleString()} />
+                            <Stat label="New (24h)" value={stats.newLast24h.toLocaleString()} />
+                            <Stat label="Last scan" value={stats.lastRunAt ? timeAgo(stats.lastRunAt) : '—'} />
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">Loading…</p>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card className="bg-card/50 backdrop-blur">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
                         <Clock className="h-5 w-5 text-primary" />
                         How scanning works
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground space-y-2">
-                    <p>Vercel Cron triggers <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">/api/scan</code> every 15 minutes (configured in <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">vercel.json</code>).</p>
-                    <p>Each search runs only when its own interval has elapsed since <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">lastRunAt</code>.</p>
+                    <p>A GitHub Actions cron hits <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">/api/scan</code> every <b>30 minutes</b>; a Vercel daily cron is a backup trigger.</p>
+                    <p>Each search only actually runs when its own <b>interval</b> has elapsed, and only inside its <b>active hours</b> — both set per search on the <Link href="/searches/new" className="text-primary underline-offset-2 hover:underline">search</Link> form, not globally.</p>
+                    <p>Which sources a search uses (yad2 / onmap) is also chosen per search.</p>
                     <p>For local testing: <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">curl http://localhost:3000/api/scan?force=1</code></p>
                 </CardContent>
             </Card>
@@ -243,6 +340,25 @@ export default function SettingsPage() {
             </Card>
         </div>
     );
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+    return (
+        <div className="rounded-lg border bg-muted/20 py-3 px-2">
+            <div className="text-xl font-semibold tabular-nums">{value}</div>
+            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mt-0.5">{label}{hint ? ` ${hint}` : ''}</div>
+        </div>
+    );
+}
+
+function timeAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.round(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.round(h / 24)}d ago`;
 }
 
 function Step({ number, title, done, children }: { number: number; title: string; done?: boolean; children: React.ReactNode }) {

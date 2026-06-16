@@ -92,6 +92,39 @@ export default function Page() {
                 </div>
             </div>
 
+            {/* Active searches — pulled to the top: the saved scans that run on schedule */}
+            {loading ? (
+                <div className="space-y-3">
+                    {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+                </div>
+            ) : searches.length === 0 ? (
+                <Card className="py-16 text-center bg-card/50 backdrop-blur border-dashed">
+                    <div className="space-y-3 max-w-sm mx-auto">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 mx-auto flex items-center justify-center">
+                            <Search className="h-6 w-6 text-primary" />
+                        </div>
+                        <h3 className="text-lg font-semibold">No searches yet</h3>
+                        <p className="text-sm text-muted-foreground">Create your first apartment search and we&apos;ll watch the listings for you.</p>
+                        <Link href="/searches/new"><Button><Plus className="h-4 w-4" />Create your first search</Button></Link>
+                    </div>
+                </Card>
+            ) : (
+                <section className="space-y-3">
+                    <div className="flex items-center gap-2">
+                        <Search className="h-4 w-4 text-primary" />
+                        <h2 className="text-sm font-semibold uppercase tracking-wider">Active searches</h2>
+                        <span className="text-xs text-muted-foreground/70 font-mono">
+                            {stats ? `${stats.searchesEnabled} of ${stats.searchesTotal} running` : searches.length}
+                        </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                        Each saved search scans its sources on schedule and pings you on new matches. Click one to edit, pause, or run it now.
+                    </p>
+                    {searches.map(s => <SearchRow key={s.id} search={s} onChange={load} />)}
+                </section>
+            )}
+
+            {/* Summary stats — moved below the searches */}
             {loading || !stats ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
@@ -111,27 +144,6 @@ export default function Page() {
                 <div className="space-y-4">
                     <ListingFlowChart />
                     <ActivityChart />
-                </div>
-            )}
-
-            {loading ? (
-                <div className="space-y-3">
-                    {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-                </div>
-            ) : searches.length === 0 ? (
-                <Card className="py-16 text-center bg-card/50 backdrop-blur border-dashed">
-                    <div className="space-y-3 max-w-sm mx-auto">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 mx-auto flex items-center justify-center">
-                            <Search className="h-6 w-6 text-primary" />
-                        </div>
-                        <h3 className="text-lg font-semibold">No searches yet</h3>
-                        <p className="text-sm text-muted-foreground">Create your first apartment search and we&apos;ll watch the listings for you.</p>
-                        <Link href="/searches/new"><Button><Plus className="h-4 w-4" />Create your first search</Button></Link>
-                    </div>
-                </Card>
-            ) : (
-                <div className="space-y-3">
-                    {searches.map(s => <SearchRow key={s.id} search={s} onChange={load} />)}
                 </div>
             )}
         </div>

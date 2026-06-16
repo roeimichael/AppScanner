@@ -1,41 +1,85 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Boxes, CheckCircle2, ExternalLink, Globe, Loader2, Radio, Wrench, XCircle } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import {
+    Boxes, ExternalLink, Globe, Heart, Loader2, Plus, Radio, ShieldCheck,
+    ShoppingBag, Sparkles, Trash2, Users2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { LIVE_SOURCES, CONSIDERED_SOURCES, STATUS_LABEL, type CatalogSource } from '@/lib/source-catalog';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LIVE_SOURCES } from '@/lib/source-catalog';
+import { LINK_SUGGESTIONS } from '@/lib/link-suggestions';
 
-type Health = { ok: boolean; count: number; error?: string };
+type Kind = 'fb_group' | 'marketplace' | 'site' | 'other';
+type LinkStatus = 'ok' | 'unreachable';
+interface LinkT { id: string; name: string; url: string; kind: Kind; note: string | null; createdAt: string }
+
+const KIND_LABEL: Record<Kind, string> = {
+    fb_group: 'Facebook groups',
+    marketplace: 'Marketplaces',
+    site: 'Other sites',
+    other: 'Other',
+};
+const KIND_ICON: Record<Kind, React.ComponentType<{ className?: string }>> = {
+    fb_group: Users2, marketplace: ShoppingBag, site: Globe, other: Globe,
+};
+const KIND_ORDER: Kind[] = ['fb_group', 'marketplace', 'site', 'other'];
+const hostOf = (u: string) => { try { return new URL(u).host.replace(/^www\./, ''); } catch { return u; } };
 
 export default function SourcesPage() {
-    const [health, setHealth] = useState<Record<string, Health>>({});
-    const [testing, setTesting] = useState<string | null>(null);
-    const [linkCount, setLinkCount] = useState<number | null>(null);
+    const [links, setLinks] = useState<LinkT[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [status, setStatus] = useState<Record<string, LinkStatus>>({});
+    const [checking, setChecking] = useState(false);
 
-    useEffect(() => {
-        fetch('/api/links').then(r => r.json()).then(j => setLinkCount((j.links ?? []).length)).catch(() => {});
-    }, []);
+    const load = async () => {
+        const r = await fetch('/api/links').then(x => x.json());
+        setLinks(r.links ?? []);
+        setLoading(false);
+    };
+    useEffect(() => { load(); }, []);
 
-    // On-demand live probe (avoids auto-spending ScraperAPI quota on page load).
-    const test = async (id: string) => {
-        setTesting(id);
+    const grouped = useMemo(() => {
+        const g: Record<Kind, LinkT[]> = { fb_group: [], marketplace: [], site: [], other: [] };
+        for (const l of links) g[l.kind].push(l);
+        return g;
+    }, [links]);
+
+    const existingUrls = useMemo(() => new Set(links.map(l => l.url)), [links]);
+    const suggestions = useMemo(() => LINK_SUGGESTIONS.filter(s => !existingUrls.has(s.url)), [existingUrls]);
+
+    const checkAll = async () => {
+        setChecking(true);
         try {
-            const r = await fetch('/api/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sources: [id], filters: { cityId: 5000, dealType: 'rent' } }),
-            }).then(x => x.json());
-            const res = (r.results ?? [])[0] ?? { count: 0, error: 'no result' };
-            const h: Health = { ok: !res.error, count: res.count ?? 0, error: res.error };
-            setHealth(prev => ({ ...prev, [id]: h }));
-            toast[h.ok ? 'success' : 'error'](h.ok ? `${res.count} listings from ${id} (Tel Aviv)` : `${id}: ${res.error}`);
-        } finally {
-            setTesting(null);
-        }
+            const r = await fetch('/api/links/check', { method: 'POST' }).then(x => x.json());
+            if (r.error) { toast.error(r.error); return; }
+            const map: Record<string, LinkStatus> = {};
+            for (const res of r.results as { id: string; status: LinkStatus }[]) map[res.id] = res.status;
+            setStatus(map);
+            const dead = Object.values(map).filter(s => s === 'unreachable').length;
+            toast.success(dead ? `${dead} link${dead > 1 ? 's' : ''} unreachable` : 'All links reachable');
+        } finally { setChecking(false); }
+    };
+
+    const add = async (s: { name: string; url: string; kind: Kind; note?: string | null }) => {
+        const r = await fetch('/api/links', {
+            method: 'POST',
+            body: JSON.stringify({ name: s.name, url: s.url, kind: s.kind, note: s.note ?? null }),
+        });
+        if (r.ok) { toast.success('Added'); load(); }
+        else { const j = await r.json().catch(() => ({})); toast.error(j.error ?? 'Failed'); }
+    };
+
+    const remove = async (id: string) => {
+        if (!confirm('Remove this link?')) return;
+        const r = await fetch(`/api/links/${id}`, { method: 'DELETE' });
+        if (r.ok) { toast.success('Removed'); load(); }
     };
 
     return (
@@ -45,121 +89,194 @@ export default function SourcesPage() {
                     <Boxes className="h-7 w-7 text-primary" />
                     Sources
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Where listings come from. Live feeds flow straight into Pool, Map and Telegram; manual spots live under Links.
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">Where your listings come from — what we scan for you, plus extra spots to check by hand.</p>
             </div>
 
-            {/* Live */}
+            {/* Live feeds — what we scan */}
             <section className="space-y-3">
                 <div className="flex items-center gap-2">
                     <Radio className="h-4 w-4 text-emerald-400" />
-                    <h2 className="text-sm font-semibold uppercase tracking-wider">Live feeds</h2>
-                    <span className="text-xs text-muted-foreground/70 font-mono">{LIVE_SOURCES.length} scanning</span>
+                    <h2 className="text-sm font-semibold uppercase tracking-wider">We scan these for you</h2>
+                    <span className="text-xs text-muted-foreground/70 font-mono">{LIVE_SOURCES.length} live</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {LIVE_SOURCES.map(s => (
-                        <SourceCard key={s.id} s={s} live health={health[s.id]} testing={testing === s.id} onTest={() => test(s.id)} />
+                        <Card key={s.id} className="p-4 bg-card/40 backdrop-blur space-y-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                                    <a href={s.url} target="_blank" rel="noreferrer" className="font-semibold hover:underline truncate flex items-center gap-1">
+                                        {s.name}<ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    </a>
+                                </div>
+                                <span className="text-[10px] inline-flex items-center gap-1 text-emerald-400 shrink-0">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />live
+                                </span>
+                            </div>
+                            {s.blurb && <p className="text-xs text-muted-foreground leading-relaxed">{s.blurb}</p>}
+                            <div className="flex flex-wrap gap-1">
+                                {s.data.map(d => (
+                                    <span key={d} className="text-[10px] font-mono text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">{d}</span>
+                                ))}
+                            </div>
+                        </Card>
                     ))}
                 </div>
             </section>
 
-            {/* Considered */}
+            {/* Manual hunting spots — the former Links page, folded in */}
             <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Wrench className="h-4 w-4 text-muted-foreground" />
-                    <h2 className="text-sm font-semibold uppercase tracking-wider">Evaluated / roadmap</h2>
-                    <span className="text-xs text-muted-foreground/70 font-mono">{CONSIDERED_SOURCES.length}</span>
-                </div>
-                <p className="text-xs text-muted-foreground -mt-1">Probed but not wired in — with the honest reason why.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {CONSIDERED_SOURCES.map(s => <SourceCard key={s.id} s={s} />)}
-                </div>
-            </section>
-
-            {/* Manual */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" />
-                    <h2 className="text-sm font-semibold uppercase tracking-wider">Manual hunting spots</h2>
-                </div>
-                <Card className="p-4 bg-card/40 backdrop-blur flex items-center justify-between gap-4 flex-wrap">
-                    <div className="text-sm text-muted-foreground">
-                        Facebook groups, marketplaces and sites we don&apos;t scrape — curated links you open yourself.
-                        {linkCount != null && <span className="text-foreground"> {linkCount} saved.</span>}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <h2 className="text-sm font-semibold uppercase tracking-wider">More places to look</h2>
+                        <span className="text-xs text-muted-foreground/70 font-mono">{links.length}</span>
                     </div>
-                    <Link href="/links"><Button variant="outline" size="sm">Open Links <ExternalLink className="h-3.5 w-3.5" /></Button></Link>
-                </Card>
+                    <div className="flex items-center gap-2">
+                        {links.length > 0 && (
+                            <Button variant="outline" size="sm" onClick={checkAll} disabled={checking}>
+                                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                                Check links
+                            </Button>
+                        )}
+                        <AddLinkDialog onAdded={load} />
+                    </div>
+                </div>
+                <p className="text-xs text-muted-foreground -mt-1">Spots we don&apos;t auto-scan (yet) — Facebook groups, marketplaces and sites you open yourself.</p>
+
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+                ) : (
+                    <div className="space-y-5">
+                        {links.length > 0 && KIND_ORDER.map(kind => {
+                            const items = grouped[kind];
+                            if (items.length === 0) return null;
+                            const Icon = KIND_ICON[kind];
+                            return (
+                                <div key={kind}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{KIND_LABEL[kind]}</h3>
+                                        <span className="text-[10px] text-muted-foreground/70 font-mono">{items.length}</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {items.map(l => {
+                                            const st = status[l.id];
+                                            return (
+                                                <Card key={l.id} className="p-3 bg-card/40 backdrop-blur hover:bg-card/70 transition-colors group">
+                                                    <div className="flex items-start gap-2">
+                                                        {st && <span title={st === 'ok' ? 'Reachable' : 'Unreachable'} className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${st === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`} />}
+                                                        <div className="flex-1 min-w-0">
+                                                            <a href={l.url} target="_blank" rel="noreferrer" className="font-medium text-sm hover:underline truncate flex items-center gap-1.5">
+                                                                {l.name}<ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                            </a>
+                                                            <div className="text-[11px] text-muted-foreground font-mono truncate">{hostOf(l.url)}</div>
+                                                            {l.note && <div className="text-xs text-muted-foreground mt-1">{l.note}</div>}
+                                                        </div>
+                                                        <button onClick={() => remove(l.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1">
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </Card>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {suggestions.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suggested spots</h3>
+                                    <span className="text-[10px] text-muted-foreground/70 font-mono">{suggestions.length}</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {suggestions.map(s => (
+                                        <Card key={s.url} className="p-3 bg-card/30 backdrop-blur border-dashed flex items-start gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <a href={s.url} target="_blank" rel="noreferrer" className="font-medium text-sm hover:underline truncate flex items-center gap-1.5">
+                                                    {s.name}<ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                </a>
+                                                <div className="text-[11px] text-muted-foreground font-mono truncate">{hostOf(s.url)}</div>
+                                                {s.note && <div className="text-xs text-muted-foreground mt-1">{s.note}</div>}
+                                            </div>
+                                            <Button size="sm" variant="ghost" className="shrink-0 h-7 px-2 text-xs" onClick={() => add(s)}>
+                                                <Plus className="h-3.5 w-3.5" /> Add
+                                            </Button>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </section>
+
+            {/* Roadmap / support — single friendly line, demand-gated */}
+            <Card className="p-4 bg-primary/5 border-primary/20 backdrop-blur flex items-start gap-3">
+                <Heart className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Want <b className="text-foreground">Facebook listings</b> or another source pulled in automatically? It&apos;s on the roadmap — I&apos;ll build it if there&apos;s enough demand.</p>
+                    <p className="text-xs">This project is free. If it helps your hunt, a <span className="text-foreground">Buy Me a Coffee</span> link is coming soon to help fund new sources.</p>
+                </div>
+            </Card>
         </div>
     );
 }
 
-const STATUS_STYLE: Record<string, string> = {
-    'live': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-    'needs-proxy': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    'html-possible': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    'needs-login': 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
-    'manual-only': 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
-};
+function AddLinkDialog({ onAdded }: { onAdded: () => void }) {
+    const [open, setOpen] = useState(false);
+    const [name, setName] = useState('');
+    const [url, setUrl] = useState('');
+    const [kind, setKind] = useState<Kind>('fb_group');
+    const [note, setNote] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
-function SourceCard({ s, live = false, health, testing, onTest }: {
-    s: CatalogSource;
-    live?: boolean;
-    health?: Health;
-    testing?: boolean;
-    onTest?: () => void;
-}) {
+    const reset = () => { setName(''); setUrl(''); setKind('fb_group'); setNote(''); };
+
+    const submit = async () => {
+        if (!name.trim() || !url.trim()) { toast.error('Name + URL required'); return; }
+        try { new URL(url.trim()); } catch { toast.error('URL must start with http(s)://'); return; }
+        setSubmitting(true);
+        try {
+            const r = await fetch('/api/links', {
+                method: 'POST',
+                body: JSON.stringify({ name: name.trim(), url: url.trim(), kind, note: note.trim() || null }),
+            });
+            if (r.ok) { toast.success('Added'); reset(); setOpen(false); onAdded(); }
+            else { const j = await r.json().catch(() => ({})); toast.error(j.error ?? 'Failed'); }
+        } finally { setSubmitting(false); }
+    };
+
     return (
-        <Card className={`p-4 bg-card/40 backdrop-blur space-y-3 ${live ? '' : 'border-dashed opacity-90'}`}>
-            <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-                    <a href={s.url} target="_blank" rel="noreferrer" className="font-semibold hover:underline truncate flex items-center gap-1">
-                        {s.name}<ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
-                    </a>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger render={<Button size="sm"><Plus className="h-4 w-4" />Add link</Button>} />
+            <DialogContent>
+                <DialogHeader><DialogTitle>Add a hunting spot</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                    <div><Label className="text-xs">Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="דירות להשכרה תל אביב" /></div>
+                    <div><Label className="text-xs">URL *</Label><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.facebook.com/groups/..." /></div>
+                    <div>
+                        <Label className="text-xs">Kind</Label>
+                        <Select value={kind} onValueChange={(v) => v && setKind(v as Kind)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="fb_group">Facebook group</SelectItem>
+                                <SelectItem value="marketplace">Marketplace</SelectItem>
+                                <SelectItem value="site">Site / aggregator</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div><Label className="text-xs">Note</Label><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="any tip, e.g. 'private owners only'" /></div>
                 </div>
-                <Badge variant="outline" className={`text-[10px] shrink-0 ${STATUS_STYLE[s.status] ?? ''}`}>
-                    {STATUS_LABEL[s.status]}
-                </Badge>
-            </div>
-
-            {s.note && <p className="text-xs text-muted-foreground leading-relaxed">{s.note}</p>}
-
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                <Meta label="Fetch" value={s.fetch} />
-                <Meta label="Cost" value={s.cost} />
-            </div>
-
-            <div className="flex flex-wrap gap-1">
-                {s.data.map(d => (
-                    <span key={d} className="text-[10px] font-mono text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">{d}</span>
-                ))}
-            </div>
-
-            {live && (
-                <div className="flex items-center gap-2 pt-1 border-t border-border/40">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onTest} disabled={testing}>
-                        {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />}
-                        Test live
-                    </Button>
-                    {health && (
-                        <span className={`text-xs inline-flex items-center gap-1 ${health.ok ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {health.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                            {health.ok ? `${health.count} in Tel Aviv` : (health.error ?? 'error').slice(0, 40)}
-                        </span>
-                    )}
-                </div>
-            )}
-        </Card>
-    );
-}
-
-function Meta({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="min-w-0">
-            <span className="text-muted-foreground/70 uppercase tracking-wider">{label}: </span>
-            <span className="text-foreground/90">{value}</span>
-        </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button onClick={submit} disabled={submitting}>Add</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

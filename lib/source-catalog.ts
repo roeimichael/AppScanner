@@ -13,28 +13,33 @@ export interface CatalogSource {
     cost: string;      // quota / $ implication
     data: string[];    // fields it yields
     color: string;     // brand tint (hex)
-    note?: string;
+    blurb?: string;    // client-facing one-liner
+    note?: string;     // internal/technical detail
 }
 
 // Scraped into the pipeline today — flow straight into Pool, Map, Telegram, scoring.
+// `blurb` is the client-facing one-liner; `note` keeps the technical detail for internal use.
 export const LIVE_SOURCES: CatalogSource[] = [
     {
         id: 'onmap', name: 'OnMap', url: 'https://www.onmap.co.il', status: 'live',
         fetch: 'Open JSON API', cost: 'Free',
-        data: ['price', 'rooms', 'sqm', 'coords', 'photos', 'phone'], color: '#2dd4bf',
+        data: ['price', 'rooms', 'sqm', 'map', 'photos', 'phone'], color: '#2dd4bf',
+        blurb: 'Live listings with photos and precise map locations.',
         note: 'Cleanest feed — public API returns structured data including map coordinates.',
     },
     {
         id: 'yad2', name: 'Yad2', url: 'https://www.yad2.co.il', status: 'live',
         fetch: 'ScraperAPI proxy', cost: 'Uses ScraperAPI quota',
-        data: ['price', 'rooms', 'sqm', 'coords', 'photos'], color: '#fb923c',
+        data: ['price', 'rooms', 'sqm', 'map', 'photos'], color: '#fb923c',
+        blurb: "Israel's largest property board — the widest net.",
         note: 'Biggest IL board. Anti-bot, so fetched through ScraperAPI — each scan spends quota.',
     },
     {
         id: 'komo', name: 'Komo', url: 'https://www.komo.co.il', status: 'live',
         fetch: 'Server HTML + geocoding', cost: 'Free (no ScraperAPI)',
-        data: ['price', 'rooms', 'sqm', 'coords*', 'photos'], color: '#f472b6',
-        note: 'Legacy board, parsed from HTML. No coordinates of its own — addresses are forward-geocoded during the scan (coords* = approximate).',
+        data: ['price', 'rooms', 'sqm', 'map', 'photos'], color: '#f472b6',
+        blurb: 'Extra private & agency listings, placed on the map by address.',
+        note: 'Legacy board, parsed from HTML. Addresses are forward-geocoded during the scan (approximate).',
     },
 ];
 

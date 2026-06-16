@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, Building2, Cog, Globe, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
+import { Boxes, Building2, Cog, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
 
 const NAV = [
     { href: '/', label: 'Searches', icon: Home },
     { href: '/optimal', label: 'Pool', icon: Sparkles },
     { href: '/tracker', label: 'Tracker', icon: ListChecks },
     { href: '/sources', label: 'Sources', icon: Boxes },
-    { href: '/links', label: 'Links', icon: Globe },
     { href: '/map', label: 'Map', icon: MapIcon },
 ] as const;
 

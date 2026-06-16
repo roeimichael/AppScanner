@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Boxes, Building2, Cog, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
+import { UserMenu } from '@/components/user-menu';
 
 const NAV = [
     { href: '/', label: 'Searches', icon: Home },
@@ -49,6 +50,7 @@ export function Sidebar() {
             </nav>
 
             <div className="px-3 py-4 border-t border-border/60">
+                <UserMenu />
                 <Link
                     href="/settings"
                     className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${

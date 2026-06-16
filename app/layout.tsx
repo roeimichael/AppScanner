@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Sidebar } from '@/components/sidebar';
+import { AppShell } from '@/components/app-shell';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -18,12 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}>
             <body className="min-h-full bg-background text-foreground">
                 <TooltipProvider delay={150}>
-                    <div className="flex min-h-screen">
-                        <Sidebar />
-                        <main className="flex-1 min-w-0 px-6 md:px-10 py-8">
-                            <div className="max-w-6xl mx-auto">{children}</div>
-                        </main>
-                    </div>
+                    <AppShell>{children}</AppShell>
                     <Toaster richColors position="top-right" />
                 </TooltipProvider>
             </body>

@@ -95,6 +95,24 @@ export default function SourcesPage() {
                 <p className="text-sm text-muted-foreground mt-1">Where your listings come from — what we scan for you, plus extra spots to check by hand.</p>
             </div>
 
+            {/* Facebook scanner + support — kept up top so it's visible */}
+            <Card className="p-4 bg-primary/5 border-primary/20 backdrop-blur flex items-start gap-3">
+                <Heart className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div className="text-sm text-muted-foreground space-y-2 flex-1">
+                    <p>Want <b className="text-foreground">Facebook listings</b> scanned automatically too? It&apos;s on the roadmap — I add new sources when there&apos;s demand, and I don&apos;t make any money off this project.</p>
+                    {SUPPORT_URL ? (
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <p className="text-xs">If appscanner helps your hunt, a coffee keeps new sources (like Facebook) coming.</p>
+                            <a href={SUPPORT_URL} target="_blank" rel="noreferrer">
+                                <Button size="sm" variant="outline"><Coffee className="h-3.5 w-3.5" /> Buy me a coffee</Button>
+                            </a>
+                        </div>
+                    ) : (
+                        <p className="text-xs">If appscanner helps your hunt, a support link is coming soon to help fund new sources.</p>
+                    )}
+                </div>
+            </Card>
+
             {/* Live feeds — what we scan */}
             <section className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -217,23 +235,6 @@ export default function SourcesPage() {
                 )}
             </section>
 
-            {/* Roadmap / support — single friendly line, demand-gated */}
-            <Card className="p-4 bg-primary/5 border-primary/20 backdrop-blur flex items-start gap-3">
-                <Heart className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div className="text-sm text-muted-foreground space-y-2 flex-1">
-                    <p>Want <b className="text-foreground">Facebook listings</b> or another source pulled in automatically? It&apos;s on the roadmap — I&apos;ll build it if there&apos;s enough demand.</p>
-                    {SUPPORT_URL ? (
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <p className="text-xs">This project is free. If it helps your hunt, a tip keeps new sources coming.</p>
-                            <a href={SUPPORT_URL} target="_blank" rel="noreferrer">
-                                <Button size="sm" variant="outline"><Coffee className="h-3.5 w-3.5" /> Support this project</Button>
-                            </a>
-                        </div>
-                    ) : (
-                        <p className="text-xs">This project is free. If it helps your hunt, a support link is coming soon to help fund new sources.</p>
-                    )}
-                </div>
-            </Card>
         </div>
     );
 }

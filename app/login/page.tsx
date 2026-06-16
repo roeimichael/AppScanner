@@ -40,8 +40,8 @@ function LoginInner() {
                         <Building2 className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold tracking-tight">appscanner</h1>
-                        <p className="text-sm text-muted-foreground mt-1">Sign in to access your apartment radar.</p>
+                        <h1 className="text-xl font-semibold tracking-tight">Welcome to appscanner</h1>
+                        <p className="text-sm text-muted-foreground mt-1">Your apartment radar — multi-source listings, a live map with light-rail distances, and instant Telegram alerts.</p>
                     </div>
                 </div>
 

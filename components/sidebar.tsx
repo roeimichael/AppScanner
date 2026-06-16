@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, Building2, Cog, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
+import { Boxes, Building2, Coffee, Cog, Home, ListChecks, Map as MapIcon, Sparkles } from 'lucide-react';
 import { UserMenu } from '@/components/user-menu';
 
 const NAV = [
@@ -12,6 +12,8 @@ const NAV = [
     { href: '/sources', label: 'Sources', icon: Boxes },
     { href: '/map', label: 'Map', icon: MapIcon },
 ] as const;
+
+const SUPPORT_URL = process.env.NEXT_PUBLIC_SUPPORT_URL;
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -50,6 +52,18 @@ export function Sidebar() {
             </nav>
 
             <div className="px-3 py-4 border-t border-border/60">
+                {SUPPORT_URL && (
+                    <a
+                        href={SUPPORT_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 transition-colors mb-1"
+                        title="This project is free — support it ☕"
+                    >
+                        <Coffee className="h-4 w-4 shrink-0" />
+                        Buy me a coffee
+                    </a>
+                )}
                 <UserMenu />
                 <Link
                     href="/settings"

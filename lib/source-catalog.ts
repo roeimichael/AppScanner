@@ -30,6 +30,12 @@ export const LIVE_SOURCES: CatalogSource[] = [
         data: ['price', 'rooms', 'sqm', 'coords', 'photos'], color: '#fb923c',
         note: 'Biggest IL board. Anti-bot, so fetched through ScraperAPI — each scan spends quota.',
     },
+    {
+        id: 'komo', name: 'Komo', url: 'https://www.komo.co.il', status: 'live',
+        fetch: 'Server HTML + geocoding', cost: 'Free (no ScraperAPI)',
+        data: ['price', 'rooms', 'sqm', 'coords*', 'photos'], color: '#f472b6',
+        note: 'Legacy board, parsed from HTML. No coordinates of its own — addresses are forward-geocoded during the scan (coords* = approximate).',
+    },
 ];
 
 // Evaluated but not wired — kept honest so the roadmap is clear (reasons from real probes).
@@ -39,12 +45,6 @@ export const CONSIDERED_SOURCES: CatalogSource[] = [
         fetch: 'Edge-blocked (HTTP 403) → needs ScraperAPI', cost: 'Would add ScraperAPI quota',
         data: ['price', 'rooms', 'sqm', 'coords', 'photos'], color: '#818cf8',
         note: 'Rich structured data incl. coordinates, but blocks datacenter IPs. Viable via ScraperAPI at quota cost.',
-    },
-    {
-        id: 'komo', name: 'Komo', url: 'https://www.komo.co.il', status: 'html-possible',
-        fetch: 'Server-rendered HTML (no API)', cost: 'Free, but needs HTML parse + geocoding',
-        data: ['price', 'rooms', 'sqm'], color: '#f472b6',
-        note: 'Reachable for free, but legacy HTML with no map coordinates — needs address geocoding and a fragile parser.',
     },
     {
         id: 'homeless', name: 'Homeless', url: 'https://www.homeless.co.il', status: 'needs-login',

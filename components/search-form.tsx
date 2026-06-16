@@ -34,6 +34,7 @@ const PROPERTY_TYPES: { id: PropertyType; label: string }[] = [
 const SOURCES = [
     { id: 'yad2', label: 'Yad2' },
     { id: 'onmap', label: 'Onmap' },
+    { id: 'komo', label: 'Komo' },
 ];
 
 const INTERVALS = [
@@ -117,7 +118,7 @@ const blank: SearchFormValue = {
     name: '',
     enabled: true,
     intervalMinutes: 60,
-    sources: ['yad2', 'onmap'],
+    sources: ['yad2', 'onmap', 'komo'],
     filters: { dealType: 'rent', propertyTypes: ['apartment'] },
 };
 

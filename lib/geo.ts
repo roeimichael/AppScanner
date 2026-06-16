@@ -46,6 +46,42 @@ export const reverseHood = async (lat: number, lon: number): Promise<string | nu
     }
 };
 
+// Forward geocode: address text → coordinates, via Nominatim search. Used for sources that
+// give an address but no lat/lon (e.g. Komo). Cached so repeat addresses are free. Returns
+// `hadToFetch` so the caller can throttle only on real network calls (Nominatim asks ≤1/sec).
+const fwdCache = new Map<string, { lat: number; lon: number } | null>();
+
+export const geocodeAddress = async (
+    parts: Array<string | undefined>,
+): Promise<{ coords: { lat: number; lon: number } | null; hadToFetch: boolean }> => {
+    const q = parts.filter(Boolean).join(', ').trim();
+    if (!q) return { coords: null, hadToFetch: false };
+    if (fwdCache.has(q)) return { coords: fwdCache.get(q)!, hadToFetch: false };
+
+    let coords: { lat: number; lon: number } | null = null;
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', ישראל')}&format=json&limit=1&accept-language=he`;
+        const res = await fetch(url, {
+            headers: { 'User-Agent': 'appscanner/1.0 (apartment-tracker)' },
+            cache: 'no-store',
+        });
+        if (res.ok) {
+            const j = (await res.json()) as Array<{ lat?: string; lon?: string }>;
+            const hit = j[0];
+            if (hit?.lat && hit?.lon) {
+                const lat = parseFloat(hit.lat);
+                const lon = parseFloat(hit.lon);
+                if (Number.isFinite(lat) && Number.isFinite(lon)) coords = { lat, lon };
+            }
+        }
+    } catch {
+        coords = null;
+    }
+    if (fwdCache.size >= CACHE_LIMIT) fwdCache.delete(fwdCache.keys().next().value!);
+    fwdCache.set(q, coords);
+    return { coords, hadToFetch: true };
+};
+
 // Helper to throttle multiple reverse-geo calls (Nominatim asks for ≤1 req/sec).
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 

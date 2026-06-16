@@ -15,6 +15,7 @@ import {
 import { sendListingFanout } from './telegram';
 import { fetchOnmapDetail } from './sources/onmap';
 import { getPpsqmStats, type PpsqmStats } from './market-stats';
+import { geocodeAddress } from './geo';
 
 export interface ChangeEvent {
     kind: 'new' | 'price_drop' | 'price_rise' | 'removed';
@@ -84,6 +85,54 @@ const enrichPhones = async (events: ChangeEvent[]): Promise<void> => {
             const detail = await fetchOnmapDetail(ev.listing.token);
             if (detail?.phone) ev.listing.phone = detail.phone;
         }));
+    }
+};
+
+// Forward-geocode new listings that arrived without coordinates (e.g. Komo's HTML feed) so
+// they show on the map and get an LRT walking distance. Throttled to Nominatim's ≤1 req/sec,
+// cached, and persisted back into seen_listings. New listings only → small volume per scan.
+const GEO_THROTTLE_MS = 1100;
+const geoSleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+const enrichGeocode = async (events: ChangeEvent[], searchId: string): Promise<void> => {
+    const targets = events.filter(e =>
+        (e.listing.lat == null || e.listing.lon == null) &&
+        (e.listing.street || e.listing.neighborhood || e.listing.city),
+    );
+    if (targets.length === 0) return;
+
+    for (const ev of targets) {
+        // Try the full street address first; on a miss, fall back to neighborhood-level
+        // (still good enough for an approximate map pin + LRT distance).
+        let r = await geocodeAddress([ev.listing.street, ev.listing.neighborhood, ev.listing.city]);
+        if (r.hadToFetch) await geoSleep(GEO_THROTTLE_MS);
+        if (!r.coords && ev.listing.neighborhood) {
+            r = await geocodeAddress([ev.listing.neighborhood, ev.listing.city]);
+            if (r.hadToFetch) await geoSleep(GEO_THROTTLE_MS);
+        }
+        if (r.coords) { ev.listing.lat = r.coords.lat; ev.listing.lon = r.coords.lon; }
+    }
+
+    // Persist the freshly-resolved coords back into seen_listings, batched per source.
+    const bySource = new Map<string, ChangeEvent[]>();
+    for (const ev of targets) {
+        if (ev.listing.lat == null) continue;
+        const key = `${ev.listing.sourceId}:${searchId}`;
+        const arr = bySource.get(key) ?? [];
+        arr.push(ev);
+        bySource.set(key, arr);
+    }
+    for (const [seenKey, evs] of bySource) {
+        const seen = await loadSeen(seenKey);
+        let dirty = false;
+        for (const ev of evs) {
+            const k = `${ev.listing.sourceId}:${ev.listing.token}`;
+            if (seen[k]) {
+                seen[k] = { ...seen[k], snapshot: { ...seen[k].snapshot, lat: ev.listing.lat, lon: ev.listing.lon } };
+                dirty = true;
+            }
+        }
+        if (dirty) await saveSeen(seenKey, seen);
     }
 };
 
@@ -208,6 +257,9 @@ export const runOneSearch = async (search: SearchRecord, opts: RunOptions = {}):
         const newEvents = events.filter(e => e.kind === 'new');
         const dropEvents = events.filter(e => e.kind === 'price_drop');
         const removedEvents = events.filter(e => e.kind === 'removed');
+
+        // Fill in coordinates for new coord-less listings before notifying/displaying them.
+        await enrichGeocode(newEvents, search.id);
 
         let notifyStatus: ScanOutcome['notifyStatus'] = 'skipped';
         let notifyError: string | undefined;

@@ -1,6 +1,7 @@
 import type { Source } from './types';
 import { yad2Source } from './yad2';
 import { onmapSource } from './onmap';
+import { komoSource } from './komo';
 // import { homelessSource } from './homeless';
 // Homeless adapter implemented but disabled: their /rent/<city> URLs return cross-country
 // promoted ads, not city-filtered listings. Real city-filtered results appear to require
@@ -9,6 +10,7 @@ import { onmapSource } from './onmap';
 export const SOURCES: Record<string, Source> = {
     yad2: yad2Source,
     onmap: onmapSource,
+    komo: komoSource,
 };
 
 export const allSourceIds = () => Object.keys(SOURCES);

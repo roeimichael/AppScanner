@@ -1,4 +1,6 @@
 import { getSource } from './sources';
+import { getCityListings } from './sources/fetch-cache';
+import { applyPostFilters } from './yad2/params';
 import type { Listing } from './sources/types';
 import {
     type SearchRecord,
@@ -168,7 +170,16 @@ export const runOneSearch = async (search: SearchRecord, opts: RunOptions = {}):
             let perSourceNew = 0;
             let listings: Listing[];
             try {
-                listings = await source.fetchListings(search.filters);
+                // Reuse one broad pull per (source, city, dealType) and filter locally — so many
+                // searches/users for the same city don't each hammer the source. Falls back to a
+                // direct fetch for region/neighborhood searches that have no single cityId.
+                if (search.filters.cityId != null) {
+                    const dealType = search.filters.dealType === 'sale' ? 'sale' : 'rent';
+                    const broad = await getCityListings(sourceId, search.filters.cityId, dealType);
+                    listings = applyPostFilters(broad, search.filters);
+                } else {
+                    listings = await source.fetchListings(search.filters);
+                }
             } catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
                 runRecords.push({

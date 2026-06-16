@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-    Boxes, ExternalLink, Globe, Heart, Loader2, Plus, Radio, ShieldCheck,
+    Boxes, Coffee, ExternalLink, Globe, Heart, Loader2, Plus, Radio, ShieldCheck,
     ShoppingBag, Sparkles, Trash2, Users2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LIVE_SOURCES } from '@/lib/source-catalog';
 import { LINK_SUGGESTIONS } from '@/lib/link-suggestions';
+
+// Set NEXT_PUBLIC_SUPPORT_URL (e.g. your Ko-fi / PayPal.me link) to activate the support button.
+const SUPPORT_URL = process.env.NEXT_PUBLIC_SUPPORT_URL;
 
 type Kind = 'fb_group' | 'marketplace' | 'site' | 'other';
 type LinkStatus = 'ok' | 'unreachable';
@@ -217,9 +220,18 @@ export default function SourcesPage() {
             {/* Roadmap / support — single friendly line, demand-gated */}
             <Card className="p-4 bg-primary/5 border-primary/20 backdrop-blur flex items-start gap-3">
                 <Heart className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div className="text-sm text-muted-foreground space-y-1">
+                <div className="text-sm text-muted-foreground space-y-2 flex-1">
                     <p>Want <b className="text-foreground">Facebook listings</b> or another source pulled in automatically? It&apos;s on the roadmap — I&apos;ll build it if there&apos;s enough demand.</p>
-                    <p className="text-xs">This project is free. If it helps your hunt, a <span className="text-foreground">Buy Me a Coffee</span> link is coming soon to help fund new sources.</p>
+                    {SUPPORT_URL ? (
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <p className="text-xs">This project is free. If it helps your hunt, a tip keeps new sources coming.</p>
+                            <a href={SUPPORT_URL} target="_blank" rel="noreferrer">
+                                <Button size="sm" variant="outline"><Coffee className="h-3.5 w-3.5" /> Support this project</Button>
+                            </a>
+                        </div>
+                    ) : (
+                        <p className="text-xs">This project is free. If it helps your hunt, a support link is coming soon to help fund new sources.</p>
+                    )}
                 </div>
             </Card>
         </div>

@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Filter, MapPinned } from 'lucide-react';
+import { MapPinned, TrainFront } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FOCUS_CITIES, focusCityById } from '@/lib/focus-cities';
 
 const ListingsMap = dynamic(() => import('@/components/listings-map').then(m => m.ListingsMap), {
     ssr: false,
@@ -30,11 +30,13 @@ interface MapListing {
     lon?: number;
     searchId: string;
     searchName?: string;
+    userState?: 'favorite' | 'dismissed' | null;
 }
 
 export default function MapPage() {
     const [listings, setListings] = useState<MapListing[]>([]);
     const [loading, setLoading] = useState(true);
+    const [cityId, setCityId] = useState<number | null>(null);
     const [searchFilter, setSearchFilter] = useState<string>('all');
     const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [colorBy, setColorBy] = useState<'source' | 'price'>('source');
@@ -54,89 +56,96 @@ export default function MapPage() {
     }, [listings]);
 
     const sources = useMemo(() => [...new Set(listings.map(l => l.sourceId))], [listings]);
+    const selectedCity = focusCityById(cityId ?? undefined);
 
     const filtered = useMemo(() => {
         return listings.filter(l => {
+            if (selectedCity && l.city !== selectedCity.hebrew) return false;
             if (searchFilter !== 'all' && l.searchId !== searchFilter) return false;
             if (sourceFilter !== 'all' && l.sourceId !== sourceFilter) return false;
-            if (hideDismissed && (l as MapListing & { userState?: string }).userState === 'dismissed') return false;
+            if (hideDismissed && l.userState === 'dismissed') return false;
             return true;
         });
-    }, [listings, searchFilter, sourceFilter, hideDismissed]);
+    }, [listings, selectedCity, searchFilter, sourceFilter, hideDismissed]);
 
     const withCoords = filtered.filter(l => typeof l.lat === 'number' && typeof l.lon === 'number').length;
+    const center: [number, number] | null = selectedCity ? [selectedCity.lat, selectedCity.lon] : null;
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-                        <MapPinned className="h-7 w-7 text-primary" />
-                        Map
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {loading ? '…' : `${withCoords} of ${filtered.length} listings have coordinates`}
-                    </p>
-                </div>
+            <div>
+                <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
+                    <MapPinned className="h-7 w-7 text-primary" />
+                    Map
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    {loading ? '…' : `${withCoords} of ${filtered.length} listings plotted`}
+                    {' · '}<span className="text-red-400">red line = Tel Aviv Light Rail</span>
+                </p>
             </div>
 
             {!loading && listings.length > 0 && (
-                <Card className="p-3 flex flex-wrap items-center gap-3 bg-card/50 backdrop-blur">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
+                <Card className="p-3 space-y-3 bg-card/50 backdrop-blur">
+                    {/* City — recenters the map */}
+                    <Group label="City">
+                        <Chip active={cityId === null} onClick={() => setCityId(null)} label="All" />
+                        {FOCUS_CITIES.map(c => (
+                            <Chip
+                                key={c.cityId}
+                                active={cityId === c.cityId}
+                                onClick={() => setCityId(c.cityId)}
+                                label={c.name}
+                                lrt={c.hasLrt}
+                            />
+                        ))}
+                    </Group>
 
-                    {searches.length > 0 && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider">Search</span>
-                            <Tabs value={searchFilter} onValueChange={setSearchFilter}>
-                                <TabsList>
-                                    <TabsTrigger value="all">All</TabsTrigger>
-                                    {searches.map(s => (
-                                        <TabsTrigger key={s.id} value={s.id}>{s.name}</TabsTrigger>
-                                    ))}
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/40 pt-3">
+                        {searches.length > 1 && (
+                            <Group label="Search">
+                                <Chip active={searchFilter === 'all'} onClick={() => setSearchFilter('all')} label="All" />
+                                {searches.map(s => (
+                                    <Chip key={s.id} active={searchFilter === s.id} onClick={() => setSearchFilter(s.id)} label={s.name} />
+                                ))}
+                            </Group>
+                        )}
 
-                    {sources.length > 1 && (
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wider">Source</span>
-                            <Tabs value={sourceFilter} onValueChange={setSourceFilter}>
-                                <TabsList>
-                                    <TabsTrigger value="all">All</TabsTrigger>
-                                    {sources.map(s => (
-                                        <TabsTrigger key={s} value={s}>
-                                            <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{
-                                                background: s === 'yad2' ? '#fb923c' : s === 'onmap' ? '#2dd4bf' : '#a78bfa',
-                                            }} />
-                                            {s}
-                                        </TabsTrigger>
-                                    ))}
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
+                        {sources.length > 1 && (
+                            <Group label="Source">
+                                <Chip active={sourceFilter === 'all'} onClick={() => setSourceFilter('all')} label="All" />
+                                {sources.map(s => (
+                                    <Chip key={s} active={sourceFilter === s} onClick={() => setSourceFilter(s)} label={s}
+                                          dot={s === 'yad2' ? '#fb923c' : s === 'onmap' ? '#2dd4bf' : '#a78bfa'} />
+                                ))}
+                            </Group>
+                        )}
 
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider">Color</span>
-                        <Tabs value={colorBy} onValueChange={(v) => setColorBy(v as 'source' | 'price')}>
-                            <TabsList>
-                                <TabsTrigger value="source">By source</TabsTrigger>
-                                <TabsTrigger value="price">By price</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
+                        <Group label="Color by">
+                            <Chip active={colorBy === 'source'} onClick={() => setColorBy('source')} label="Source" />
+                            <Chip active={colorBy === 'price'} onClick={() => setColorBy('price')} label="Price" />
+                        </Group>
+
+                        <button
+                            onClick={() => setHideDismissed(v => !v)}
+                            className={`text-xs px-3 py-1 rounded-md border transition-colors ${hideDismissed ? 'bg-background border-border text-muted-foreground hover:bg-accent' : 'bg-primary/15 border-primary/40 text-primary'}`}
+                        >
+                            {hideDismissed ? 'show dismissed' : 'hide dismissed'}
+                        </button>
+
+                        <Badge variant="outline" className="font-mono ml-auto">{filtered.length} pts</Badge>
                     </div>
 
-                    <button
-                        onClick={() => setHideDismissed(v => !v)}
-                        className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${hideDismissed ? 'bg-muted/30 border-border text-muted-foreground' : 'bg-primary/10 border-primary/40 text-primary'}`}
-                    >
-                        {hideDismissed ? 'show dismissed' : 'hide dismissed'}
-                    </button>
-
-                    <div className="ml-auto flex gap-2">
-                        <Badge variant="outline" className="font-mono">{filtered.length} pts</Badge>
-                    </div>
+                    {selectedCity && (
+                        <div className="text-xs border-t border-border/40 pt-2">
+                            {selectedCity.hasLrt ? (
+                                <span className="text-red-400 inline-flex items-center gap-1.5">
+                                    <TrainFront className="h-3.5 w-3.5" /> Red Line runs through {selectedCity.name}.
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">No operational light rail in {selectedCity.name} yet.</span>
+                            )}
+                        </div>
+                    )}
                 </Card>
             )}
 
@@ -153,8 +162,37 @@ export default function MapPage() {
                     </div>
                 </Card>
             ) : (
-                <ListingsMap listings={filtered} colorBy={colorBy} />
+                <ListingsMap listings={filtered} colorBy={colorBy} center={center} />
             )}
         </div>
+    );
+}
+
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">{label}</span>
+            <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+        </div>
+    );
+}
+
+function Chip({ active, onClick, label, lrt, dot }: {
+    active: boolean;
+    onClick: () => void;
+    label: string;
+    lrt?: boolean;
+    dot?: string;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs transition-colors ${active ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-background border-border text-muted-foreground hover:bg-accent'}`}
+        >
+            {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} />}
+            {label}
+            {lrt && <TrainFront className="h-3 w-3 text-red-400" />}
+        </button>
     );
 }

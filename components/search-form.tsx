@@ -15,7 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ListingCard } from '@/components/listing-card';
-import { CITIES, cityNameEn } from '@/lib/yad2/cities';
+import { CITIES } from '@/lib/yad2/cities';
+import { FOCUS_CITIES } from '@/lib/focus-cities';
 import { Slider } from '@/components/ui/slider';
 import type { FilterSpec, Preferences, PropertyType } from '@/lib/sources/types';
 
@@ -408,12 +409,14 @@ export function SearchForm({ initial }: { initial?: SearchFormValue }) {
                                     >
                                         <SelectTrigger><SelectValue placeholder="Pick a city" /></SelectTrigger>
                                         <SelectContent>
-                                            {CITIES.map(c => {
-                                                const en = cityNameEn(c);
-                                                return <SelectItem key={c.id} value={String(c.id)}>{en && en !== c.name ? `${en} — ${c.name}` : c.name}</SelectItem>;
-                                            })}
+                                            {FOCUS_CITIES.map(c => (
+                                                <SelectItem key={c.cityId} value={String(c.cityId)}>
+                                                    {c.name} — {c.hebrew}{c.hasLrt ? ' 🚈' : ''}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
+                                    <p className="text-[11px] text-muted-foreground">Supported cities (each has map + light-rail data). Need another? Use Custom city ID under Location.</p>
                                 </div>
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <RangeRow

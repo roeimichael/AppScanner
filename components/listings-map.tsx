@@ -156,9 +156,19 @@ function RedLineLayer() {
     return null;
 }
 
-export function ListingsMap({ listings, colorBy = 'source' }: {
+// Flies the map to a chosen city center when one is selected.
+function Recenter({ center }: { center: [number, number] | null }) {
+    const map = useMap();
+    useEffect(() => {
+        if (center) map.setView(center, 13, { animate: true });
+    }, [center, map]);
+    return null;
+}
+
+export function ListingsMap({ listings, colorBy = 'source', center = null }: {
     listings: MapListing[];
     colorBy?: 'source' | 'price';
+    center?: [number, number] | null;
 }) {
     const points = useMemo(
         () => listings.filter(l => typeof l.lat === 'number' && typeof l.lon === 'number')
@@ -181,7 +191,7 @@ export function ListingsMap({ listings, colorBy = 'source' }: {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <FitBounds points={points} />
+                {center ? <Recenter center={center} /> : <FitBounds points={points} />}
                 <RedLineLayer />
                 <ClusterLayer listings={listings} mode={colorBy} priceMin={priceMin} priceMax={priceMax} />
             </MapContainer>

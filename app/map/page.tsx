@@ -5,8 +5,11 @@ import dynamic from 'next/dynamic';
 import { MapPinned, TrainFront } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { FOCUS_CITIES, focusCityById } from '@/lib/focus-cities';
+import {
+    SortFilterBar, applySortFilter, defaultQuickFilters,
+    type QuickFilters, type SortKey,
+} from '@/components/sort-filter-bar';
 
 const ListingsMap = dynamic(() => import('@/components/listings-map').then(m => m.ListingsMap), {
     ssr: false,
@@ -31,16 +34,19 @@ interface MapListing {
     searchId: string;
     searchName?: string;
     userState?: 'favorite' | 'dismissed' | null;
+    status?: string;
+    createdAt?: string;
+    firstSeenAt?: string;
 }
 
 export default function MapPage() {
     const [listings, setListings] = useState<MapListing[]>([]);
     const [loading, setLoading] = useState(true);
     const [cityId, setCityId] = useState<number | null>(null);
-    const [searchFilter, setSearchFilter] = useState<string>('all');
     const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [colorBy, setColorBy] = useState<'source' | 'price'>('source');
-    const [hideDismissed, setHideDismissed] = useState(true);
+    const [filters, setFilters] = useState<QuickFilters>(defaultQuickFilters());
+    const [sort, setSort] = useState<SortKey>('posted_desc');
 
     useEffect(() => {
         fetch('/api/listings').then(r => r.json()).then(j => {
@@ -49,24 +55,17 @@ export default function MapPage() {
         });
     }, []);
 
-    const searches = useMemo(() => {
-        const m = new Map<string, string>();
-        for (const l of listings) m.set(l.searchId, l.searchName ?? l.searchId);
-        return [...m.entries()].map(([id, name]) => ({ id, name }));
-    }, [listings]);
-
     const sources = useMemo(() => [...new Set(listings.map(l => l.sourceId))], [listings]);
     const selectedCity = focusCityById(cityId ?? undefined);
 
-    const filtered = useMemo(() => {
-        return listings.filter(l => {
-            if (selectedCity && l.city !== selectedCity.hebrew) return false;
-            if (searchFilter !== 'all' && l.searchId !== searchFilter) return false;
-            if (sourceFilter !== 'all' && l.sourceId !== sourceFilter) return false;
-            if (hideDismissed && l.userState === 'dismissed') return false;
-            return true;
-        });
-    }, [listings, selectedCity, searchFilter, sourceFilter, hideDismissed]);
+    // Map-specific narrowing first (city + source), then the shared Pool-style filters.
+    const base = useMemo(() => listings.filter(l => {
+        if (selectedCity && l.city !== selectedCity.hebrew) return false;
+        if (sourceFilter !== 'all' && l.sourceId !== sourceFilter) return false;
+        return true;
+    }), [listings, selectedCity, sourceFilter]);
+
+    const filtered = useMemo(() => applySortFilter(base, filters, sort), [base, filters, sort]);
 
     const withCoords = filtered.filter(l => typeof l.lat === 'number' && typeof l.lon === 'number').length;
     const center: [number, number] | null = selectedCity ? [selectedCity.lat, selectedCity.lon] : null;
@@ -80,73 +79,60 @@ export default function MapPage() {
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                     {loading ? '…' : `${withCoords} of ${filtered.length} listings plotted`}
-                    {' · '}<span className="text-red-400">red line = Tel Aviv Light Rail</span>
                 </p>
             </div>
 
             {!loading && listings.length > 0 && (
-                <Card className="p-3 space-y-3 bg-card/50 backdrop-blur">
-                    {/* City — recenters the map */}
-                    <Group label="City">
-                        <Chip active={cityId === null} onClick={() => setCityId(null)} label="All" />
-                        {FOCUS_CITIES.map(c => (
-                            <Chip
-                                key={c.cityId}
-                                active={cityId === c.cityId}
-                                onClick={() => setCityId(c.cityId)}
-                                label={c.name}
-                                lrt={c.hasLrt}
-                            />
-                        ))}
-                    </Group>
-
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/40 pt-3">
-                        {searches.length > 1 && (
-                            <Group label="Search">
-                                <Chip active={searchFilter === 'all'} onClick={() => setSearchFilter('all')} label="All" />
-                                {searches.map(s => (
-                                    <Chip key={s.id} active={searchFilter === s.id} onClick={() => setSearchFilter(s.id)} label={s.name} />
-                                ))}
-                            </Group>
-                        )}
-
-                        {sources.length > 1 && (
-                            <Group label="Source">
-                                <Chip active={sourceFilter === 'all'} onClick={() => setSourceFilter('all')} label="All" />
-                                {sources.map(s => (
-                                    <Chip key={s} active={sourceFilter === s} onClick={() => setSourceFilter(s)} label={s}
-                                          dot={s === 'yad2' ? '#fb923c' : s === 'onmap' ? '#2dd4bf' : '#a78bfa'} />
-                                ))}
-                            </Group>
-                        )}
-
-                        <Group label="Color by">
-                            <Chip active={colorBy === 'source'} onClick={() => setColorBy('source')} label="Source" />
-                            <Chip active={colorBy === 'price'} onClick={() => setColorBy('price')} label="Price" />
+                <>
+                    <Card className="p-3 space-y-3 bg-card/50 backdrop-blur">
+                        {/* City — recenters the map */}
+                        <Group label="City">
+                            <Chip active={cityId === null} onClick={() => setCityId(null)} label="All" />
+                            {FOCUS_CITIES.map(c => (
+                                <Chip key={c.cityId} active={cityId === c.cityId} onClick={() => setCityId(c.cityId)} label={c.name} lrt={c.hasLrt} />
+                            ))}
                         </Group>
 
-                        <button
-                            onClick={() => setHideDismissed(v => !v)}
-                            className={`text-xs px-3 py-1 rounded-md border transition-colors ${hideDismissed ? 'bg-background border-border text-muted-foreground hover:bg-accent' : 'bg-primary/15 border-primary/40 text-primary'}`}
-                        >
-                            {hideDismissed ? 'show dismissed' : 'hide dismissed'}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border/40 pt-3">
+                            {sources.length > 1 && (
+                                <Group label="Source">
+                                    <Chip active={sourceFilter === 'all'} onClick={() => setSourceFilter('all')} label="All" />
+                                    {sources.map(s => (
+                                        <Chip key={s} active={sourceFilter === s} onClick={() => setSourceFilter(s)} label={s}
+                                              dot={s === 'yad2' ? '#fb923c' : s === 'onmap' ? '#2dd4bf' : '#f472b6'} />
+                                    ))}
+                                </Group>
+                            )}
+                            <Group label="Color by">
+                                <Chip active={colorBy === 'source'} onClick={() => setColorBy('source')} label="Source" />
+                                <Chip active={colorBy === 'price'} onClick={() => setColorBy('price')} label="Price" />
+                            </Group>
+                        </div>
 
-                        <Badge variant="outline" className="font-mono ml-auto">{filtered.length} pts</Badge>
-                    </div>
-
-                    {selectedCity && (
+                        {/* Single light-rail line (no longer duplicated in the subtitle) */}
                         <div className="text-xs border-t border-border/40 pt-2">
-                            {selectedCity.hasLrt ? (
-                                <span className="text-red-400 inline-flex items-center gap-1.5">
-                                    <TrainFront className="h-3.5 w-3.5" /> Red Line runs through {selectedCity.name}.
-                                </span>
+                            {selectedCity ? (
+                                selectedCity.hasLrt ? (
+                                    <span className="text-red-400 inline-flex items-center gap-1.5"><TrainFront className="h-3.5 w-3.5" /> Red Line runs through {selectedCity.name}.</span>
+                                ) : (
+                                    <span className="text-muted-foreground">No operational light rail in {selectedCity.name} yet.</span>
+                                )
                             ) : (
-                                <span className="text-muted-foreground">No operational light rail in {selectedCity.name} yet.</span>
+                                <span className="text-red-400 inline-flex items-center gap-1.5"><TrainFront className="h-3.5 w-3.5" /> Red line on the map = Tel Aviv Light Rail.</span>
                             )}
                         </div>
-                    )}
-                </Card>
+                    </Card>
+
+                    {/* Pool-style dynamic filtering — same bar as the Pool page */}
+                    <SortFilterBar
+                        sort={sort}
+                        onSort={setSort}
+                        filters={filters}
+                        onFilters={setFilters}
+                        totalCount={base.length}
+                        filteredCount={filtered.length}
+                    />
+                </>
             )}
 
             {loading ? (

@@ -17,6 +17,7 @@ export const FOCUS_CITIES: FocusCity[] = [
     { cityId: 6300, name: 'Givatayim',     hebrew: 'גבעתיים',     lat: 32.070129, lon: 34.809427, hasLrt: false },
     { cityId: 6400, name: 'Herzliya',      hebrew: 'הרצליה',      lat: 32.173883, lon: 34.827975, hasLrt: false },
     { cityId: 7900, name: 'Petah Tikva',   hebrew: 'פתח תקווה',   lat: 32.095493, lon: 34.883125, hasLrt: true },
+    { cityId: 2640, name: 'Rosh HaAyin',   hebrew: 'ראש העין',    lat: 32.094224, lon: 34.963262, hasLrt: false },
 ];
 
 export const focusCityById = (id?: number): FocusCity | undefined =>
